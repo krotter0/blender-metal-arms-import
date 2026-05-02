@@ -76,3 +76,16 @@ def create_action(mtx: Mtx, name, frame_rate=30):
                 rotation_keys,
                 4,
             )
+
+        if bone.sKeyCount:
+            scale_keys = []
+            for i in range(bone.sKeyCount):
+                source_scale = bone.sKeyData[i]
+                scale_keys.append((bone.sKeyTimes[i] * frame_rate, (source_scale, source_scale, source_scale)))
+
+            _insert_keyframes(
+                channelbag,
+                f'pose.bones["{bone.name}"].scale',
+                scale_keys,
+                3,
+            )
