@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "metal_arms_asset_import"
+version = "0.1.1"
+name = "Metal Arms Asset Importer"
+tagline = "Imports compiled Metal Arms model (.ape), world (.wld) and animation (.mtx) files."
+maintainer = "Krotter"
+type = "add-on"
+
+blender_version_min = "5.1.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
