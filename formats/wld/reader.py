@@ -121,13 +121,6 @@ class FVisCellTreeNode_t:
         self.contained_cell_idx = 0
 
     def read(self, reader: BinaryReader):
-        """
-        FVisAABB_t AABB;			// Axis aligned bounding box that describes this leaf
-        u16 nParentNodeIdx;			// index of the parent of this node
-        u16 nChildNodeIdx1;			// index of the first child or 0xffff if there is no child
-        u16 nChildNodeIdx2;			// index of the second child or 0xffff if there is no child
-        u16 nContainedCellIdx;		// Index of cell contained within this node, or 0xffff
-        """
         self.aabb.read(reader)
         self.parent_node_idx = reader.read_U16()
         self.child_node_idx1 = reader.read_U16()
@@ -140,31 +133,12 @@ class FVisCellTree_t:
         self.nodes = []
 
     def read(self, reader: BinaryReader):
-        """
-        u16 nFirstNodeIndex;			// index of the first node
-        u16 nNodeCount;					// number of nodes in the tree
-        FVisCellTreeNode_t *paNodes;	// pointer to the array of nodes
-        """
         self.first_node_index = reader.read_U16()
         node_count = reader.read_U16()
         self.nodes = [FVisCellTreeNode_t() for _ in range(node_count)]
         reader.read_ptr_objects(self.nodes)
 
 class FVisPortal_t:
-    """
-	u16 nFlags; 				// See FVisPortal flags, above
-	u16 nPortalID;				// Index of this portal in the portal data portal list (used at the app level to identify portals)
-
-	// Connectivity description
-	u16 anAdjacentVolume[2];	// The indices of the two adjacent volumes into the global volume array
-	u8  anIdxInVolume[2];		// The portal's portal index in the portal arrays of the adjacent volumes
-	u16 nVertCount;
-	
-	CFVec3 avVertices[FVIS_MAX_PORTAL_VERTS];	// The coplanar verts that form the portal (MUST WIND CLOCKWISE WHEN NORMAL FACING VIEWPOINT)
-	CFVec3 vNormal;				// The world space normal of the portal pointing into volume index 0 (negate for the normal into volume 1) (Could be index into normal sphere for GC)
-	CFSphere spBoundingWS;		// A world space bounding sphere
-	f32 fBoundingRadiusSq;		// Square of the bounding sphere radius
-    """
     def __init__(self):
         self.flags: PortalFlags = PortalFlags.NONE
         self.portal_id = 0
@@ -200,31 +174,6 @@ class CFWorldKey:
     def read(self, reader: BinaryReader):
         self.m_anVisitedKey = reader.read_U32s(3)
 class FVisVolume_t:
-    """
-	u16 nVolumeID;					// Unique ID for this volume.  Should equal the index of this volume in the portal data volume array
-	u8 nFlags;		
-	CFWorldKey Key;					// Key to help with list processing
-	CFSphere spBoundingWS;			// Bounding sphere for the volume in world space (used for frustum culling - eventually we should use a better shape)
-	
-	u8 nPortalCount;				// Number of portals in this volume
-	u8 nCellCount;					// Number of cells that make up this volume
-	u16 nCellFirstIdx;				// First Cell index in the array of cells
-	
-	s8 nCrossesPlanesMask;			// Used to indicate which frustum planes this volume crosses (must be set to 0 by tools)
-	u8 nActiveAdjacentSteps;		// Number of steps from this volume, if drawn, that volumes will be added to the active list
-	s8 nActiveStepDecrement;		// Decrement to active list stepping when adding this volume
-	u8 __nPad;
-	
-	u16 anTotalTrackerCount[FWORLD_TRACKERTYPE_COUNT];	// Total number of trackers intersecting this volume (must be set to 0 by tools)
-	FLinkRoot_t aTrackerIntersects[FWORLD_TRACKERTYPE_COUNT];	// World Intersects that indicate Trackers that currently intersect with this volume
-	
-	u16 *paPortalIndices;			// Pointer to the array of indices for portals that are visible in this volume
-
-	CFMeshInst *pWorldGeo;			// World (static) geometry associated with this volume (The tool should store an index into the geo array which
-									// will be resolved to a pointer to the actual geometry.  If there is no geo, this MUST be set to FVIS_INVALID_GEO_ID
-									// by the tool.  The engine will then set it to NULL at load time.)
-	
-	void *pUserData;				// Pointer that the app can use to store information specific to this portal (ex. AI path nodes, etc)"""
     def __init__(self):
         self.nVolumeID = 0
         self.nFlags = 0
@@ -362,25 +311,6 @@ class FVisData_t:
         reader.read_ptr_objects(self.lights)
 
 class CFWorldShapeInit:
-    """		FWorldShapeType_e m_nShapeType;	// The shape type code
-
-		union 
-		{							// Pointer to the type-specific shape object:
-			void						*m_pShape;
-			CFWorldShapeLine			*m_pLine;
-			CFWorldShapeSpline			*m_pSpline;
-			CFWorldShapeBox				*m_pBox;
-			CFWorldShapeSphere			*m_pSphere;
-			CFWorldShapeCylinder		*m_pCylinder;
-			CFWorldShapeMesh			*m_pMesh;
-		};
-
-		CFMtx43 m_Mtx43;				// Orientation of the shape (Mesh shapes may have non-unit scale, but all other shapes will ALWAYS have m_Mtx43 unit scale)
-		s32 m_nParentShapeIndex;		// The index of the CFWorldShapeInit in the init table that this shape is attached to (-1=not attached)
-		void *m_pGameData;				// Pointer to game-specific data (NULL=none)
-
-        """
-    
     def __init__(self):
         self.type: WorldShapeType = WorldShapeType.COUNT
         self.shape: CFWorldShapeLine | CFWorldShapeSpline | CFWorldShapeBox | CFWorldShapeSphere | CFWorldShapeCylinder | CFWorldShapeMesh | None = None
