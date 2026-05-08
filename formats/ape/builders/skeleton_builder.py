@@ -1,14 +1,13 @@
-from .axis_convert import to_blender_pos
+from ....common.axis_convert import to_blender_pos
+from ..reader import Ape, FMeshBone_t
+from ....common import vec
 
-from .reader.ape import Ape, FMeshBone_t
-
-from . import vec
 import bpy
 import mathutils
 
-MIN_BONE_LENGTH = 0.4
+_MIN_BONE_LENGTH = 0.4
 
-def get_max_distance_to_children(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t]):
+def _get_max_distance_to_children(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t]):
     bone = ape.boneArray[bone_index]
     bone_pos = bone.AtRestBoneToModelMtx.a
     max_distance = 0.0
@@ -22,12 +21,12 @@ def get_max_distance_to_children(ape: Ape, bone_index: int, bone_children: list[
 
     return max_distance
 
-def build_bone(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t], armature):
+def _build_bone(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t], armature):
     bone = ape.boneArray[bone_index]
     bone_obj = armature.edit_bones.new(bone.name)
 
-    distance_to_children = get_max_distance_to_children(ape, bone_index, bone_children)
-    bone_length = max(MIN_BONE_LENGTH, distance_to_children * 1)
+    distance_to_children = _get_max_distance_to_children(ape, bone_index, bone_children)
+    bone_length = max(_MIN_BONE_LENGTH, distance_to_children * 1)
 
     pos = bone.AtRestBoneToModelMtx.a
     head = to_blender_pos(pos)
@@ -40,16 +39,17 @@ def build_bone(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t], arma
     bone_obj.align_roll(roll)
     return bone_obj
 
-def update_bone_hierarchy(ape: Ape, bone_index: int, bone_objs):
+def _update_bone_hierarchy(ape: Ape, bone_index: int, bone_objs):
     bone = ape.boneArray[bone_index]
     if bone.Skeleton.parentBoneIndex == 255:
         return
     bone_objs[bone_index].parent = bone_objs[bone.Skeleton.parentBoneIndex]
 
-def build_skeleton(ape: Ape):
-    armature = bpy.data.armatures.new(name=ape.name)
+def build(ape: Ape, name: str = None):
+    name = name or ape.name
+    armature = bpy.data.armatures.new(name=name)
 
-    armature_object = bpy.data.objects.new(name=ape.name, object_data=armature)
+    armature_object = bpy.data.objects.new(name=name, object_data=armature)
 
     scene = bpy.context.scene
     scene.collection.objects.link(armature_object)
@@ -66,10 +66,10 @@ def build_skeleton(ape: Ape):
 
     bone_objs = [None] * len(ape.boneArray)
     for i, bone in enumerate(ape.boneArray):
-        bone_objs[i] = build_bone(ape, i, bone_children, armature)
+        bone_objs[i] = _build_bone(ape, i, bone_children, armature)
         
     for i, bone in enumerate(ape.boneArray):
-        update_bone_hierarchy(ape, i, bone_objs)
+        _update_bone_hierarchy(ape, i, bone_objs)
 
     bpy.ops.object.mode_set(mode='OBJECT')
 

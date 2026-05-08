@@ -4,10 +4,10 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty
 from bpy.types import Operator
 
-from ..common import Platform
-from ..reader.mtx import Mtx
-from ..reader.common import BinaryReader
-from .. import anim_builder
+from ...common.platform import Platform
+from .reader import Mtx
+from ..common.reader import BinaryReader
+from .builders import anim_builder
 
 class ImportMtx(Operator, ImportHelper):
     """Import a Metal Arms Compiled Animation (.mtx) file"""

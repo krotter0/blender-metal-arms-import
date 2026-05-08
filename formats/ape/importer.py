@@ -1,12 +1,12 @@
 import bpy
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty
 from bpy.types import Operator
 
-from ..common import Platform
-from ..reader.common import BinaryReader
-from ..reader.ape import Ape
-from .. import model_builder
+from ...common.platform import Platform
+from ..common.reader import BinaryReader
+from .reader import Ape
+from .builders import model_builder
 
 class ImportApe(Operator, ImportHelper):
     """Import a Metal Arms Compiled Mesh (.ape) file"""
@@ -53,13 +53,14 @@ class ImportApe(Operator, ImportHelper):
         default=True
     )
 
-    def execute(self, context):
-        platform = Platform.parse(self.platform)
+    merge_clusters: BoolProperty(
+        name="Merge Clusters",
+        description="Import .ape as a single Blender object",
+        default=False
+    )
 
-        lod_index = int(self.lod_index)
-        if lod_index == -1:
-            lod_index = None
-        return self._read_ape(context, self.filepath, platform, lod_index, self.create_armature)
+    def execute(self, context):
+        return self._read_ape(context)
     
     def draw(self, context):
         layout = self.layout
@@ -75,11 +76,25 @@ class ImportApe(Operator, ImportHelper):
         row = col.row()
         row.prop(self, "create_armature")
 
-    def _read_ape(self, context, filepath: str, platform: Platform, lod_index: int = None, create_armature: bool = True):
-        with BinaryReader(filepath, False) as reader:
+        row = col.row()
+        row.prop(self, "merge_clusters")
+
+    def _read_ape(self, context):
+        with BinaryReader(self.filepath, False) as reader:
             ape = Ape()
             ape.read(reader)
+            
+            lod_index = int(self.lod_index)
+            if lod_index == -1:
+                lod_index = None
 
-            model_builder.create_ma_mesh(ape, lod_index, create_armature)
+            options = model_builder.ModelBuildOptions()
+            options.platform = Platform.parse(self.platform)
+            options.filepath = self.filepath
+            options.lod_index = lod_index
+            options.create_armature = self.create_armature
+            options.merge_clusters = self.merge_clusters
+
+            model_builder.build(ape, options)
 
         return {'FINISHED'}

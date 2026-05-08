@@ -1,8 +1,8 @@
 import bpy
 import mathutils
 from bpy_extras import anim_utils
-from .reader.mtx import Mtx
-from .axis_convert import to_blender_rot, to_blender_pos
+from ..reader import Mtx
+from ....common.axis_convert import to_blender_rot, to_blender_pos
 
 def _get_rest_local_components(armature_bone):
     rest_matrix = armature_bone.matrix_local.copy()

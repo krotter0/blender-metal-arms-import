@@ -1,7 +1,7 @@
 import bpy
-from .importer.ape import ImportApe
-from .importer.mtx import ImportMtx
-from .importer.wld import ImportWld
+from .formats.ape.importer import ImportApe
+from .formats.mtx.importer import ImportMtx
+from .formats.wld.importer import ImportWld
 
 def menu_func_import(self, context):
     self.layout.operator(ImportApe.bl_idname, text="Metal Arms Compiled Mesh (.ape)")

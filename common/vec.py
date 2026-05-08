@@ -1,8 +1,8 @@
 
 import math
 
-def add(a, b):
-    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+def add(*args):
+    return (sum(v[0] for v in args), sum(v[1] for v in args), sum(v[2] for v in args))
 
 def sub(a, b):
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
@@ -12,6 +12,14 @@ def mul(v, s):
 
 def len(v):
     return math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+
+def dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
 
 def norm(v):
     length = len(v)
