@@ -1,6 +1,6 @@
 from enum import Enum, Flag
 
-from ...csv.reader import FDataGamFile_Header_t
+from ...csv.types.csv import FDataGamFile_Header_t
 from ...ape.types.model import Ape
 from ....common.binary_reader import BinaryReader
 from ...common.types.common import CFColorMotif, CFColorRGB, CFMtx43, CFSphere, CFVec3, CFVec3A
