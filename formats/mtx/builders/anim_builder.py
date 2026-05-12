@@ -33,14 +33,14 @@ def create_action(mtx: Mtx, name, frame_rate=30):
 
     animation_data = obj.animation_data
     action = bpy.data.actions.new(name=name)
-    action.frame_range = (0, mtx.totalSeconds * frame_rate)
-    action.frame_end = mtx.totalSeconds * frame_rate
+    action.frame_range = (0, mtx.total_seconds * frame_rate)
+    action.frame_end = mtx.total_seconds * frame_rate
     slot = action.slots.new(id_type=obj.id_type, name=obj.name)
     animation_data.action = action
 
     channelbag = anim_utils.action_ensure_channelbag_for_slot(action, slot)
 
-    for bone in mtx.boneArray:
+    for bone in mtx.bones:
         if bone.name not in obj.data.bones or bone.name not in obj.pose.bones:
             continue
 
@@ -48,12 +48,12 @@ def create_action(mtx: Mtx, name, frame_rate=30):
         rest_location, rest_rotation = _get_rest_local_components(obj.data.bones[bone.name])
         rest_rotation_inverse = rest_rotation.inverted()
 
-        if bone.tKeyCount:
+        if len(bone.translation_key_data) > 0:
             location_keys = []
-            for i in range(bone.tKeyCount):
-                source_location = mathutils.Vector(to_blender_pos(bone.tKeyData[i]))
+            for i in range(len(bone.translation_key_data)):
+                source_location = mathutils.Vector(to_blender_pos(bone.translation_key_data[i]))
                 pose_location = rest_rotation_inverse @ (source_location - rest_location)
-                location_keys.append((bone.tKeyTimes[i] * frame_rate, tuple(pose_location)))
+                location_keys.append((bone.translation_key_times[i] * frame_rate, tuple(pose_location)))
 
             _insert_keyframes(
                 channelbag,
@@ -62,13 +62,13 @@ def create_action(mtx: Mtx, name, frame_rate=30):
                 3,
             )
 
-        if bone.oKeyCount:
+        if len(bone.orientation_key_data) > 0:
             rotation_keys = []
-            for i in range(bone.oKeyCount):
-                source_rotation = mathutils.Quaternion(to_blender_rot(bone.oKeyData[i]))
+            for i in range(len(bone.orientation_key_data)):
+                source_rotation = mathutils.Quaternion(to_blender_rot(bone.orientation_key_data[i]))
                 pose_rotation = rest_rotation_inverse @ source_rotation
                 pose_rotation.normalize()
-                rotation_keys.append((bone.oKeyTimes[i] * frame_rate, tuple(pose_rotation)))
+                rotation_keys.append((bone.orientation_key_times[i] * frame_rate, tuple(pose_rotation)))
 
             _insert_keyframes(
                 channelbag,
@@ -77,11 +77,11 @@ def create_action(mtx: Mtx, name, frame_rate=30):
                 4,
             )
 
-        if bone.sKeyCount:
+        if len(bone.scale_key_data) > 0:
             scale_keys = []
-            for i in range(bone.sKeyCount):
-                source_scale = bone.sKeyData[i]
-                scale_keys.append((bone.sKeyTimes[i] * frame_rate, (source_scale, source_scale, source_scale)))
+            for i in range(len(bone.scale_key_data)):
+                source_scale = bone.scale_key_data[i]
+                scale_keys.append((bone.scale_key_times[i] * frame_rate, (source_scale, source_scale, source_scale)))
 
             _insert_keyframes(
                 channelbag,

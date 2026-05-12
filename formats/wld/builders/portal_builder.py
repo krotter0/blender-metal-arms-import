@@ -1,11 +1,8 @@
 import bpy
 from ....common import axis_convert, vec
-from ..reader import FVisPortal_t, PortalFlags
+from ..types.world import FVisPortal_t, PortalFlags
 
-def build(portal: FVisPortal_t, skip_if_autoportal=True):
-    if skip_if_autoportal and portal.flags & PortalFlags.AUTO_PORTAL:
-        return None
-    
+def build(portal: FVisPortal_t):
     name = f"port_{portal.portal_id}"
     
     curve = bpy.data.curves.new(name, type='CURVE')

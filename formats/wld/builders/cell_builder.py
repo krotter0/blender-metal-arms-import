@@ -1,6 +1,6 @@
 import bpy
 import math
-from ..reader import FVisCell_t, FVisPlane_t
+from ..types.world import FVisCell_t, FVisData_t, FVisPlane_t
 from ....common import vec, axis_convert
 
 _EPSILON = 0.0001
@@ -10,28 +10,36 @@ class _IntersectionVertexData:
         self.pos = pos
         self.plane_indices = plane_indices
 
-def build(index: int, cell: FVisCell_t):
+def build_with_volumes(vis: FVisData_t, skip_first_cell: bool = False):
+    volumes = vis.volumes
+    if skip_first_cell and len(volumes) > 0:
+        volumes = volumes[1:]
+
+    for volume in volumes:
+        collection = bpy.context.collection
+        if volume.cell_count > 1:
+            volume_collection = bpy.data.collections.new(f"cell_volume_{volume.volume_id}")
+            collection.children.link(volume_collection)
+            collection = volume_collection
+            
+        for cell_index in range(volume.cell_first_idx, volume.cell_first_idx + volume.cell_count):
+            cell = vis.cells[cell_index]
+            build(cell_index, cell, collection)
+
+def build(index: int, cell: FVisCell_t, parent_collection: bpy.types.Collection = None):
+    parent_collection = parent_collection or bpy.context.collection
+
     name = f"cell_{index}"
-    print(f"Building cell: {name}")
-    print(f"Cell bounding planes: {len(cell.bounding_planes)}")
-    for i, plane in enumerate(cell.bounding_planes):
-        print(f"  Plane {i}: normal={plane.normal}, point={plane.point}")
 
     verticies_info, plane_intersection_indices = _collect_intersections(cell)
     verticies = [axis_convert.to_blender_pos(vertex_data.pos) for vertex_data in verticies_info]
 
-    for i, vertex in enumerate(verticies):
-        print(f"Vertex {i}: pos={vertex}, planes={verticies_info[i].plane_indices}")
     faces = _build_faces(verticies_info, plane_intersection_indices, cell.bounding_planes)
-
-    for i, face in enumerate(faces):
-        print(f"Face {i}: verticies={face}")
 
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     
-    collection = bpy.context.collection
-    collection.objects.link(obj)
+    parent_collection.objects.link(obj)
 
     obj.hide_set(True)
 
@@ -60,8 +68,6 @@ def _collect_intersections(cell: FVisCell_t):
                     plane_intersection_indices[j].append(vertex_index)
                     plane_intersection_indices[k].append(vertex_index)
 
-    print(f"Intersections: {",".join([str(x.plane_indices) for x in vertices_info])}")
-    print(f"Plane verticies: {",".join([str(x) for x in plane_intersection_indices])}")
     return vertices_info, plane_intersection_indices
 
 def _is_vertex_inside(pos: tuple[float], planes: list[FVisPlane_t]):
@@ -75,7 +81,6 @@ def _build_faces(verticies_info: list[_IntersectionVertexData], plane_intersecti
     for i, plane_indices in enumerate(plane_intersection_indices):
         face_vertex_indices = _build_face(verticies_info, plane_indices, planes[i])
         if face_vertex_indices is not None:
-            print(f"Face for plane {i}: vertices={face_vertex_indices}")
             faces.append(face_vertex_indices)
     return faces
 

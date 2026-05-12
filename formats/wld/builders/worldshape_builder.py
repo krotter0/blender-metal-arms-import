@@ -1,18 +1,18 @@
 import bpy
 import math
-from ....formats.ape.reader import Ape
+from ...ape.types.model import Ape
 from mathutils import Quaternion, Vector
-from ...common.reader import CFMtx43
+from ...common.types.common import CFMtx43
 
-from ..reader import CFWorldShapeBox, CFWorldShapeCylinder, CFWorldShapeInit, CFWorldShapeLine, CFWorldShapeMesh, CFWorldShapeSphere, CFWorldShapeSpline, LightType, World, WorldShapeType
+from ..types.world import CFWorldShapeBox, CFWorldShapeCylinder, CFWorldShapeInit, CFWorldShapeLine, CFWorldShapeMesh, CFWorldShapeSphere, CFWorldShapeSpline, WorldShapeType
 from ....common import axis_convert
 from ....formats.ape.builders import model_builder
 
 class _WorldShapeBuildContext:
-    def __init__(self, meshes: dict[str, Ape]):
-        self.meshes = meshes
+    def __init__(self, precomputed_meshes: dict[str, model_builder.ModelPrecomputeData]):
+        self.precomputed_meshes = precomputed_meshes
 
-def build(index: int, worldshape: CFWorldShapeInit, meshes: dict[str, Ape]):
+def build(index: int, worldshape: CFWorldShapeInit, precomputed_meshes: dict[str, model_builder.ModelPrecomputeData]):
     _SHAPE_TYPE_TO_BUILDER_MAP = {
         WorldShapeType.POINT: _build_shape_point,
         WorldShapeType.LINE: _build_shape_line,
@@ -23,7 +23,7 @@ def build(index: int, worldshape: CFWorldShapeInit, meshes: dict[str, Ape]):
         WorldShapeType.MESH: _build_shape_mesh,
     }
 
-    context = _WorldShapeBuildContext(meshes)
+    context = _WorldShapeBuildContext(precomputed_meshes)
 
     builder = _SHAPE_TYPE_TO_BUILDER_MAP.get(worldshape.type)
     if builder:
@@ -48,13 +48,14 @@ def _set_blender_obj_transform(obj: bpy.types.Object, mtx: CFMtx43):
     obj.rotation_mode = 'QUATERNION'
     obj.rotation_quaternion = blender_mtx.to_quaternion()
     obj.location = blender_mtx.to_translation()
+    obj.scale = blender_mtx.to_scale()
 
 def _to_local_points(points: list[tuple[float, float, float]], mtx: CFMtx43):
     inv_mtx = axis_convert.mtx43_to_blender_mtx(mtx).inverted_safe()
     return [tuple(inv_mtx @ Vector(point)) for point in points]
 
 def _build_shape_point(index: int, init: CFWorldShapeInit, shape: None, context: _WorldShapeBuildContext):
-    name = _try_get_name(init, f"Point_{index}")
+    name = _try_get_name(init, f"point_{index}")
     obj = bpy.data.objects.new(name, None)
 
     obj.empty_display_type = 'ARROWS'
@@ -65,7 +66,7 @@ def _build_shape_point(index: int, init: CFWorldShapeInit, shape: None, context:
     return obj
 
 def _build_shape_box(index: int, init: CFWorldShapeInit, shape: CFWorldShapeBox, context: _WorldShapeBuildContext):
-    name = _try_get_name(init, f"Box_{index}")
+    name = _try_get_name(init, f"box_{index}")
     obj = bpy.data.objects.new(name, None)
 
     obj.empty_display_type = 'CUBE'
@@ -79,7 +80,7 @@ def _build_shape_box(index: int, init: CFWorldShapeInit, shape: CFWorldShapeBox,
     return obj
 
 def _build_shape_sphere(index: int, init: CFWorldShapeInit, shape: CFWorldShapeSphere, context: _WorldShapeBuildContext):
-    name = _try_get_name(init, f"Sphere_{index}")
+    name = _try_get_name(init, f"sphere_{index}")
     obj = bpy.data.objects.new(name, None)
 
     obj.empty_display_type = 'SPHERE'
@@ -91,7 +92,7 @@ def _build_shape_sphere(index: int, init: CFWorldShapeInit, shape: CFWorldShapeS
     return obj
 
 def _build_shape_line(index: int, init: CFWorldShapeInit, shape: CFWorldShapeLine, context: _WorldShapeBuildContext):
-    name = _try_get_name(init, f"Line_{index}")
+    name = _try_get_name(init, f"line_{index}")
     points = [(0, 0, 0), (0, shape.length, 0)]
 
     curve = _create_curve(name)
@@ -103,7 +104,7 @@ def _build_shape_line(index: int, init: CFWorldShapeInit, shape: CFWorldShapeLin
     return obj
 
 def _build_shape_spline(index: int, init: CFWorldShapeInit, shape: CFWorldShapeSpline, context: _WorldShapeBuildContext):
-    name = _try_get_name(init, f"Spline_{index}")
+    name = _try_get_name(init, f"spline_{index}")
     points = [axis_convert.to_blender_pos(point) for point in shape.points]
     local_points = _to_local_points(points, init.mtx)
     
@@ -116,7 +117,7 @@ def _build_shape_spline(index: int, init: CFWorldShapeInit, shape: CFWorldShapeS
     return obj
 
 def _build_shape_cylinder(index: int, init: CFWorldShapeInit, shape: CFWorldShapeCylinder, context: _WorldShapeBuildContext):
-    name = _try_get_name(init, f"Cylinder_{index}")
+    name = _try_get_name(init, f"cylinder_{index}")
     obj = bpy.data.objects.new(name, None)
 
     obj.empty_display_type = 'CONE'
@@ -134,20 +135,20 @@ def _build_shape_mesh(index: int, init: CFWorldShapeInit, shape: CFWorldShapeMes
     name = "obj_" + shape.mesh_name
 
     obj = None
-    if context.meshes is None or shape.mesh_name not in context.meshes:
+    if context.precomputed_meshes is None or shape.mesh_name not in context.precomputed_meshes:
         obj = bpy.data.objects.new(name, None)
 
         obj.empty_display_type = 'ARROWS'
         obj.empty_display_size = 2.5
         bpy.context.collection.objects.link(obj)
     else:
-        ape = context.meshes[shape.mesh_name]
+        precomputed_data = context.precomputed_meshes[shape.mesh_name]
         options = model_builder.ModelBuildOptions()
         options.create_armature = False
         options.merge_clusters = True
         options.name = name
         options.lod_index = 0
-        obj = model_builder.build(ape, options)
+        obj = model_builder.build_from_precompute(precomputed_data, options)
 
     if obj is not None:
         _set_blender_obj_transform(obj, init.mtx)

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "metal_arms_asset_import"
-version = "0.1.2"
+version = "0.2.0"
 name = "Metal Arms Asset Importer"
 tagline = "Imports compiled Metal Arms asset files"
 maintainer = "Krotter"

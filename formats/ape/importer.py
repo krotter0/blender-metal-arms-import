@@ -1,11 +1,14 @@
+from pathlib import Path
+
 import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty
 from bpy.types import Operator
+from ...common.property_groups.texture_import_settings import TextureImportSettings
 
 from ...common.platform import Platform
-from ..common.reader import BinaryReader
-from .reader import Ape
+from ...common.binary_reader import BinaryReader
+from .types.model import Ape
 from .builders import model_builder
 
 class ImportApe(Operator, ImportHelper):
@@ -60,6 +63,9 @@ class ImportApe(Operator, ImportHelper):
     )
 
     def execute(self, context):
+        if not context.window_manager.ma_texture_import_settings.is_valid():
+            self.report({'ERROR'}, "Invalid texture folder path.")
+            return {'CANCELLED'}
         return self._read_ape(context)
     
     def draw(self, context):
@@ -79,6 +85,8 @@ class ImportApe(Operator, ImportHelper):
         row = col.row()
         row.prop(self, "merge_clusters")
 
+        context.window_manager.ma_texture_import_settings.draw(context, layout)
+
     def _read_ape(self, context):
         with BinaryReader(self.filepath, False) as reader:
             ape = Ape()
@@ -94,6 +102,8 @@ class ImportApe(Operator, ImportHelper):
             options.lod_index = lod_index
             options.create_armature = self.create_armature
             options.merge_clusters = self.merge_clusters
+            options.texture_folder_path = context.window_manager.ma_texture_import_settings.get_path()
+            options.texture_allow_recurse = context.window_manager.ma_texture_import_settings.texture_allow_recurse
 
             model_builder.build(ape, options)
 

@@ -6,7 +6,7 @@ from bpy.types import Operator
 
 from ...common.platform import Platform
 from .reader import Mtx
-from ..common.reader import BinaryReader
+from ...common.binary_reader import BinaryReader
 from .builders import anim_builder
 
 class ImportMtx(Operator, ImportHelper):

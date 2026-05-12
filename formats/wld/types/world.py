@@ -1,8 +1,10 @@
 from enum import Enum, Flag
 
-from ..csv.reader import FDataGamFile_Header_t
-from ..ape.reader import Ape
-from ..common.reader import BinaryReader, CFColorMotif, CFColorRGB, CFMtx43, CFSphere, CFVec3, CFVec3A, FLinkRoot_s
+from ...csv.reader import FDataGamFile_Header_t
+from ...ape.types.model import Ape
+from ....common.binary_reader import BinaryReader
+from ...common.types.common import CFColorMotif, CFColorRGB, CFMtx43, CFSphere, CFVec3, CFVec3A
+from ...common.types.lights import FLightInit_t
 
 class WorldShapeType(Enum):
     POINT = 0
@@ -13,35 +15,6 @@ class WorldShapeType(Enum):
     CYLINDER = 5
     MESH = 6
     COUNT = 7
-
-class LightType(Enum):
-    DIRECTIONAL = 0
-    OMNIDIRECTIONAL = 1
-    SPOT = 2
-    AMBIENT = 3
-    COUNT = 4
-
-class LightFlags(Flag):
-    NONE                    = 0x00000000
-    ENABLE                  = 0x00000001
-    HASDIR                  = 0x00000002
-    HASPOS                  = 0x00000004
-    LIGHT_ATTACHED          = 0x00000008
-    NOLIGHT_TERRAIN         = 0x00000010
-    DONT_LIGHT_UNATTACHED   = 0x00000020
-    PER_PIXEL               = 0x00000040
-    MESH_MUST_BE_PER_PIXEL  = 0x00000080
-    ENGINE_LIGHT            = 0x00000100
-    LIGHTMAP_LIGHT          = 0x00000200
-    UNIQUE_LIGHTMAPS        = 0x00000400
-    CORONA                  = 0x00000400
-    CORONA_PROXFADE         = 0x00000800
-    CORONA_ONLY             = 0x00001000
-    CAST_SHADOWS            = 0x00002000
-    CORONA_WORLDSPACE       = 0x00004000
-    GAMEPLAY_LIGHT          = 0x00008000
-    DYNAMIC_ONLY            = 0x40000000
-    INCLUDE                 = 0x80000000
 
 class PortalFlags(Flag):
     NONE                    = 0x0000
@@ -155,11 +128,11 @@ class FVisPortal_t:
         self.adjacent_volume = reader.read_U16s(2)
         self.idx_in_volume = reader.read_U8s(2)
 
-        nVertCount = reader.read_U16()
-        self.verticies = [CFVec3() for _ in range(nVertCount)]
+        vert_count = reader.read_U16()
+        self.verticies = [CFVec3() for _ in range(vert_count)]
         for v in self.verticies:
             v.read(reader)
-        for _ in range(4 - nVertCount):
+        for _ in range(4 - vert_count):
             reader.skip(3 * 4) # Skip unused vertex slots
 
         self.normal = CFVec3()
@@ -169,47 +142,47 @@ class FVisPortal_t:
 
 class CFWorldKey:
     def __init__(self):
-        self.m_anVisitedKey = [0] * 3
+        self.visited_key = [0] * 3
 
     def read(self, reader: BinaryReader):
-        self.m_anVisitedKey = reader.read_U32s(3)
+        self.visited_key = reader.read_U32s(3)
 class FVisVolume_t:
     def __init__(self):
-        self.nVolumeID = 0
-        self.nFlags = 0
-        self.Key = CFWorldKey()
-        self.spBoundingWS = CFSphere()
-        self.nPortalCount = 0
-        self.nCellCount = 0
-        self.nCellFirstIdx = 0
-        self.nCrossesPlanesMask = 0
-        self.nActiveAdjacentSteps = 0
-        self.nActiveStepDecrement = 0
-        self.paPortalIndices = []
-        self.pWorldGeo = None
+        self.volume_id = 0
+        self.flags = 0
+        self.key = CFWorldKey()
+        self.bounding_sphere_ws = CFSphere()
+        self.portal_count = 0
+        self.cell_count = 0
+        self.cell_first_idx = 0
+        self.crosses_planes_mask = 0
+        self.active_adjacent_steps = 0
+        self.active_step_decrement = 0
+        self.portal_indices = []
+        self.world_geo_index = None
 
     def read(self, reader: BinaryReader):
-        self.nVolumeID = reader.read_U16()
-        self.nFlags = reader.read_U8()
+        self.volume_id = reader.read_U16()
+        self.flags = reader.read_U8()
         reader.skip(1) # Padding
-        self.Key.read(reader)
-        self.spBoundingWS.read(reader)
-        self.nPortalCount = reader.read_U8()
-        self.nCellCount = reader.read_U8()
-        self.nCellFirstIdx = reader.read_U16()
-        self.nCrossesPlanesMask = reader.read_S8()
-        self.nActiveAdjacentSteps = reader.read_U8()
-        self.nActiveStepDecrement = reader.read_S8()
+        self.key.read(reader)
+        self.bounding_sphere_ws.read(reader)
+        self.portal_count = reader.read_U8()
+        self.cell_count = reader.read_U8()
+        self.cell_first_idx = reader.read_U16()
+        self.crosses_planes_mask = reader.read_S8()
+        self.active_adjacent_steps = reader.read_U8()
+        self.active_step_decrement = reader.read_S8()
         reader.skip(1) # Padding
         reader.skip(2 * 4) # Runtime value
         reader.skip(16 * 4) # Runtime value
         
-        portalIndicesPtr = reader.read_U32()
-        if portalIndicesPtr != 0:
-            with reader.detour(portalIndicesPtr):
-                self.paPortalIndices = reader.read_U16s(self.nPortalCount)
+        portal_indices_ptr = reader.read_U32()
+        if portal_indices_ptr != 0:
+            with reader.detour(portal_indices_ptr):
+                self.portal_indices = reader.read_U16s(self.portal_count)
 
-        self.WorldGeoIndex = reader.read_U32()
+        self.world_geo_index = reader.read_U32()
         reader.skip(4) # User data, seemingly unused for MA
 
 class FVisPlane_t:
@@ -240,40 +213,6 @@ class FVisCell_t:
                     plane = FVisPlane_t()
                     plane.read(reader)
                     self.bounding_planes.append(plane)
-
-class FLightInit_t:
-    def __init__(self):
-        self.name = ""
-        self.perpixel_tex_name = ""
-        self.corona_tex_name = ""
-        self.flags: LightFlags = LightFlags.NONE
-        self.light_id = 0xFFFF
-        self.type: LightType = LightType.DIRECTIONAL
-        self.parent_bone_idx = -1
-        self.intensity = 0.0
-        self.motif = CFColorMotif()
-        self.influence = CFSphere()
-        self.mtx_orientation = CFMtx43()
-        self.spot_inner_radians = 0.0
-        self.spot_outer_radians = 0.0
-        self.corona_scale = 0.0
-
-    def read(self, reader: BinaryReader):
-        self.name = reader.read_string(16)
-        self.perpixel_tex_name = reader.read_string(16)
-        self.corona_tex_name = reader.read_string(16)
-        self.flags = LightFlags(reader.read_U32())
-        self.light_id = reader.read_U16()
-        self.type = LightType(reader.read_U8())
-        print(f"({self.light_id}) Light name: {self.name}, type: {self.type}, flags: {self.flags}")
-        self.parent_bone_idx = reader.read_S8()
-        self.intensity = reader.read_F32()
-        self.motif.read(reader)
-        self.influence.read(reader)
-        self.mtx_orientation.read(reader)
-        self.spot_inner_radians = reader.read_F32()
-        self.spot_outer_radians = reader.read_F32()
-        self.corona_scale = reader.read_F32()
 
 class FVisData_t:
     def __init__(self):

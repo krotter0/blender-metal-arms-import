@@ -1,4 +1,4 @@
-from ..common.reader import BinaryReader
+from ...common.binary_reader import BinaryReader
 from enum import Enum
 
 class DataGameFileDataType(Enum):
