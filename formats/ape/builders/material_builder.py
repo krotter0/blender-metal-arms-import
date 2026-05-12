@@ -185,7 +185,9 @@ def _add_tex_layer_commands(ape: Ape, material: FMeshMaterial_t, star_commands: 
         register_type = SurfaceShaderRegisterType.layer(i)
         register: FShTexInst_t = material.get_register(register_type)
         if register is not None and register.tex_layer_id != 255:
-            assert tex_layer_id is None or tex_layer_id == register.tex_layer_id
+            if tex_layer_id is not None and register.tex_layer_id != tex_layer_id:
+                print(f"Warning: Material has multiple different tex layer ids, skipping...")
+                return
             tex_layer_id = register.tex_layer_id
             tex_layer_id_register_layer = i
 
