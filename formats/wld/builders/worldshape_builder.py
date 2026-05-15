@@ -9,10 +9,10 @@ from ....common import axis_convert
 from ....formats.ape.builders import model_builder
 
 class _WorldShapeBuildContext:
-    def __init__(self, precomputed_meshes: dict[str, model_builder.ModelPrecomputeData]):
+    def __init__(self, precomputed_meshes: dict[str, any]):
         self.precomputed_meshes = precomputed_meshes
 
-def build(index: int, worldshape: CFWorldShapeInit, precomputed_meshes: dict[str, model_builder.ModelPrecomputeData]):
+def build(index: int, worldshape: CFWorldShapeInit, precomputed_meshes: dict[str, any]):
     _SHAPE_TYPE_TO_BUILDER_MAP = {
         WorldShapeType.POINT: _build_shape_point,
         WorldShapeType.LINE: _build_shape_line,

@@ -25,7 +25,7 @@ class ImportWld(Operator, ImportHelper):
         name="Platform",
         items=[
             ("DX", "Xbox", ""),
-            #("GC", "GameCube", ""),
+            ("GC", "GameCube", ""),
         ],
         default="DX"
     )
@@ -90,7 +90,6 @@ class ImportWld(Operator, ImportHelper):
 
         row = col.row()
         row.prop(self, "platform")
-        row.enabled = False
 
         row = col.row()
         row.prop(self, "import_meshes")
@@ -121,12 +120,13 @@ class ImportWld(Operator, ImportHelper):
         context.window_manager.ma_texture_import_settings.draw(context, layout)
 
     def _read_wld(self, context):
-        with BinaryReader(self.filepath, False) as reader:
-            wld = World()
+        platform = Platform.parse(self.platform)
+        with BinaryReader(self.filepath, platform.is_big_endian()) as reader:
+            wld = World(platform)
             wld.read(reader)
 
         options = world_builder.WorldBuildOptions()
-        options.platform = Platform.parse(self.platform)
+        options.platform = platform
         options.filepath = self.filepath
         options.import_meshes = self.import_meshes
         options.import_lights = self.import_lights

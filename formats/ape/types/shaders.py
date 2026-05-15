@@ -1,33 +1,9 @@
 from enum import Enum, Flag
 
-from ..common.types.common import CFColorMotif
-from .types.texture import FShTexInst_t
+from ....common.platform import Platform
 
-class FDX8VB_Info:
-    def __init__(self,
-        vtx_bytes: int,
-        unlit: bool,
-        normal_count: int,
-        weight_count: int,
-        color_count: int,
-        tc_count: int,
-        offset_pos: int,
-        offset_weight: int,
-        offset_norm: int,
-        offset_color: int,
-        offset_tc: int
-    ):
-        self.vtx_bytes = vtx_bytes
-        self.unlit = unlit
-        self.normal_count = normal_count
-        self.weight_count = weight_count
-        self.color_count = color_count
-        self.tc_count = tc_count
-        self.offset_pos = offset_pos
-        self.offset_weight = offset_weight
-        self.offset_norm = offset_norm
-        self.offset_color = offset_color
-        self.offset_tc = offset_tc
+from ...common.types.common import CFColorMotif
+from .texture import FShTexInst_t
     
 class LightShaderRegisterType(Enum):
     ZMASK = 0
@@ -151,8 +127,19 @@ class SurfaceShader(Enum):
     ADD = 63
     BLEND_AIPLUSAT = 64
     CT_PLUS_CIAT_AI = 65
+
+    INTENSITY = 66 # GC only
+    tBASE_LM = 67 # GC only
+    tBASE_DETAIL_LM = 68 # GC only
+    tBASE_LERP_tLAYER_LM = 69 # GC only
         
-    otBASE = 66
+    otBASE = 70 # 66 on DX, 70 on GC
+    
+    @staticmethod
+    def parse(value: int, platform: Platform):
+        if platform == Platform.DX and value >= 66:
+            value += 4 # Treat 66 as otBASE on DX
+        return SurfaceShader(value)
 
     def is_detail(self):
         return self in _DETAIL_SURFACE_SHADER_TO_BASE_REMAP
@@ -170,12 +157,37 @@ class LightShader(Enum):
     VLIGHT_BASIC_CO = 3
     VLIGHT_MASK_EMISSIVE = 4
     VLIGHT_MASK_EMISSIVE_CO = 5
+    # GC only below
+    LM1 = 6
+    LM1_ZMASK = 7
+    LM1_EMASK = 8
+    LM1_ZMASK_EMASK = 9
+    LM2 = 10
+    LM2_ZMASK = 11
+    LM2_EMASK = 12
+    LM2_ZMASK_EMASK = 13
+    LM3 = 14
+    LM3_ZMASK = 15
+    LM3_EMASK = 16
+    LM3_ZMASK_EMASK = 17
+    LM4 = 18
+    LM4_ZMASK = 19
+    LM4_EMASK = 20
+    LM4_ZMASK_EMASK = 21
+
+    @staticmethod
+    def parse(value: int, platform: Platform):
+        return LightShader(value)
 
 class SpecularShader(Enum):
     VSPEC_BASIC = 0
     VSPEC_MASK = 1
     VSPEC_BASIC_CO = 2
     VSPEC_BASIC_MASK_CO = 3
+
+    @staticmethod
+    def parse(value: int, platform: Platform):
+        return SpecularShader(value)
 
 class ToolShader(Enum):
     # 1 layer
@@ -898,100 +910,6 @@ FShaders_aShaderRegs = [
         SurfaceShaderRegisterType.LAYER0,
         SurfaceShaderRegisterType.TC0
     ])
-]
-
-FDX8VB_InfoTable = [
-    FDX8VB_Info(
-        vtx_bytes=36,
-        unlit=False,
-        normal_count=1,
-        weight_count=0,
-        color_count=1,
-        tc_count=1,
-        offset_pos=0,
-        offset_weight=255,
-        offset_norm=12,
-        offset_color=24,
-        offset_tc=28,
-    ),
-    FDX8VB_Info(
-        vtx_bytes=44,
-        unlit=False,
-        normal_count=1,
-        weight_count=0,
-        color_count=1,
-        tc_count=2,
-        offset_pos=0,
-        offset_weight=255,
-        offset_norm=12,
-        offset_color=24,
-        offset_tc=28,
-    ),
-    FDX8VB_Info(
-        vtx_bytes=48,
-        unlit=False,
-        normal_count=1,
-        weight_count=3,
-        color_count=1,
-        tc_count=1,
-        offset_pos=0,
-        offset_weight=12,
-        offset_norm=24,
-        offset_color=36,
-        offset_tc=40,
-    ),
-    FDX8VB_Info(
-        vtx_bytes=56,
-        unlit=False,
-        normal_count=1,
-        weight_count=3,
-        color_count=1,
-        tc_count=2,
-        offset_pos=0,
-        offset_weight=12,
-        offset_norm=24,
-        offset_color=36,
-        offset_tc=40,
-    ),
-    FDX8VB_Info(
-        vtx_bytes=40,
-        unlit=True,
-        normal_count=0,
-        weight_count=0,
-        color_count=2,
-        tc_count=2,
-        offset_pos=0,
-        offset_weight=255,
-        offset_norm=255,
-        offset_color=16,
-        offset_tc=24,
-    ),
-    FDX8VB_Info(
-        vtx_bytes=16,
-        unlit=False,
-        normal_count=0,
-        weight_count=0,
-        color_count=1,
-        tc_count=0,
-        offset_pos=0,
-        offset_weight=255,
-        offset_norm=255,
-        offset_color=12,
-        offset_tc=255,
-    ),
-    FDX8VB_Info(
-        vtx_bytes=24,
-        unlit=False,
-        normal_count=0,
-        weight_count=0,
-        color_count=1,
-        tc_count=1,
-        offset_pos=0,
-        offset_weight=255,
-        offset_norm=255,
-        offset_color=12,
-        offset_tc=16,
-    )
 ]
 
 def get_surface_shader_reg_info(shader: SurfaceShader):

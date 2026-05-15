@@ -28,7 +28,7 @@ class ImportApe(Operator, ImportHelper):
         name="Platform",
         items=[
             ("DX", "Xbox", ""),
-            #("GC", "GameCube", ""),
+            ("GC", "GameCube", ""),
         ],
         default="DX"
     )
@@ -74,7 +74,6 @@ class ImportApe(Operator, ImportHelper):
 
         row = col.row()
         row.prop(self, "platform")
-        row.enabled = False
 
         row = col.row()
         row.prop(self, "lod_index")
@@ -88,8 +87,9 @@ class ImportApe(Operator, ImportHelper):
         context.window_manager.ma_texture_import_settings.draw(context, layout)
 
     def _read_ape(self, context):
-        with BinaryReader(self.filepath, False) as reader:
-            ape = Ape()
+        platform = Platform.parse(self.platform)
+        with BinaryReader(self.filepath, platform.is_big_endian()) as reader:
+            ape = Ape(platform)
             ape.read(reader)
             
             lod_index = int(self.lod_index)
@@ -97,7 +97,7 @@ class ImportApe(Operator, ImportHelper):
                 lod_index = None
 
             options = model_builder.ModelBuildOptions()
-            options.platform = Platform.parse(self.platform)
+            options.platform = platform
             options.filepath = self.filepath
             options.lod_index = lod_index
             options.create_armature = self.create_armature

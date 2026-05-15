@@ -5,6 +5,7 @@ from ...ape.types.model import Ape
 from ....common.binary_reader import BinaryReader
 from ...common.types.common import CFColorMotif, CFColorRGB, CFMtx43, CFSphere, CFVec3, CFVec3A
 from ...common.types.lights import FLightInit_t
+from ....common.platform import Platform
 
 class WorldShapeType(Enum):
     POINT = 0
@@ -31,7 +32,9 @@ class PortalFlags(Flag):
     AUTO_PORTAL             = 0x8000
 
 class World:
-    def __init__(self):
+    def __init__(self, platform: Platform):
+        self.platform = platform
+        self.meshes: list[Ape] = []
         self.vis_data = FVisData_t()
         self.worldshapes: list[CFWorldShapeInit] = []
 
@@ -52,7 +55,7 @@ class World:
         mesh_pointers = reader.read_U32s(num_meshes)
         self.meshes = []
         for p in mesh_pointers:
-            ape = Ape()
+            ape = Ape(self.platform)
             reader.set_offset(p)
             reader.seek(0)
             ape.read(reader)

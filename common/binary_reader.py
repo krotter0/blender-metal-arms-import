@@ -1,3 +1,5 @@
+from io import BytesIO, IOBase
+from pathlib import Path
 import struct, math
 
 class _BinaryReaderDetour:
@@ -21,21 +23,30 @@ class _BinaryReaderDetour:
         self._reader.seek(self._old_pos)
 
 class BinaryReader:
-    def __init__(self, filename, big_endian):
-        self.filename = filename
+    def __init__(self, source: str | IOBase | bytes | Path, big_endian, close_on_exit=True):
+        self.source = source
         self._endianness_prefix = big_endian and ">" or "<"
         self.offset = 0
+        self._close_on_exit = close_on_exit or not isinstance(source, IOBase)
 
     def __enter__(self):
-        self.file = open(self.filename, "rb")
+        if isinstance(self.source, str):
+            self.io = open(self.source, "rb")
+        elif isinstance(self.source, Path):
+            self.io = open(self.source, "rb")
+        elif isinstance(self.source, bytes):
+            self.io = BytesIO(self.source)
+        else:
+            self.io = self.source
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.file.close()
+        if self._close_on_exit:
+            self.io.close()
 
     def _read_format_all(self, format):
         format = self._endianness_prefix + format
-        buffer = self.file.read(struct.calcsize(format))
+        buffer = self.io.read(struct.calcsize(format))
         return list(struct.unpack(format, buffer))
 
     def _read_format(self, format):
@@ -49,7 +60,7 @@ class BinaryReader:
             # Read as null-term string
             result = []
             while True:
-                chunk = self.file.read(char_size)
+                chunk = self.io.read(char_size)
                 if chunk == b"\x00" * char_size:
                     break
                 result.append(chunk)
@@ -67,10 +78,10 @@ class BinaryReader:
             return string.decode(encoding)
         
     def seek(self, position):
-        self.file.seek(position + self.offset)
+        self.io.seek(position + self.offset)
         
     def tell(self):
-        return self.file.tell() - self.offset
+        return self.io.tell() - self.offset
         
     def apply_pad(self, pad):
         curr_pos = self.tell()
@@ -95,7 +106,7 @@ class BinaryReader:
         self.seek(previous_pos)
         return ptr
 
-    def read_ptr_objects(self, objects, stride=0):
+    def read_ptr_objects(self, objects, stride=None):
         ptr = self.read_U32()
         if ptr == 0:
             return
@@ -104,14 +115,14 @@ class BinaryReader:
         
         for object in objects:
             object.read(self)
-            if stride > 0:
+            if stride is not None:
                 ptr += stride
                 self.seek(ptr)
         
         self.seek(previous_pos)
         
     def skip(self, bytes):
-        self.file.seek(self.file.tell() + bytes)
+        self.io.seek(self.io.tell() + bytes)
     
     def read_BOOL8(self): return self.read_U8() != 0
     def read_BOOL(self): return self.read_U32() != 0
@@ -145,3 +156,6 @@ class BinaryReader:
     
     def read_widestring(self, length=None):
         return self._read_string(True, length)
+    
+    def read_binary(self, length):
+        return self.io.read(length)

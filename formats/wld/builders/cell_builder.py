@@ -53,8 +53,6 @@ def _collect_intersections(cell: FVisCell_t):
     for i in range(len(cell.bounding_planes)):
         for j in range(i + 1, len(cell.bounding_planes)):
             for k in range(j + 1, len(cell.bounding_planes)):
-                if i == j or j == k or i == k:
-                    continue
                 intersection = _plane_intersect(cell.bounding_planes[i], cell.bounding_planes[j], cell.bounding_planes[k])
                 if intersection is not None and _is_vertex_inside(intersection, cell.bounding_planes):
                     vertex_index = None

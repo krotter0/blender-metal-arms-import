@@ -35,8 +35,8 @@ def _load_external_meshes(world: World, options: WorldBuildOptions):
         ape_path = wld_path.with_name(mesh_name).with_suffix(".ape")
         if ape_path.exists():
             print(f"Loading mesh from {ape_path}")
-            with BinaryReader(ape_path, False) as reader:
-                ape = Ape()
+            with BinaryReader(ape_path, options.platform.is_big_endian()) as reader:
+                ape = Ape(options.platform)
                 ape.read(reader)
                 loaded_meshes[mesh_name] = ape
 

@@ -6,14 +6,14 @@ from ....common.star_command_assembler import StarCommandAssembler
 from ...common.types.common import CFColorMotif
 from ..types.model import Ape, FMeshMaterial_t, MtlFlags
 from ..types.texture import FShTexInst_t, TexLayerIdFlags
-from ..dx8_shaders import SurfaceShaderRegisterType, LightShaderRegisterType, get_tool_shader_from_shader_combination
-from .. import dx8_shaders
+from ..types.shaders import SurfaceShaderRegisterType, LightShaderRegisterType, get_tool_shader_from_shader_combination
+from ..types import shaders
 
 def build(ape: Ape, material: FMeshMaterial_t):
-    surface_shader_info = dx8_shaders.get_surface_shader_reg_info(material.surface_shader)
-    light_shader_info = dx8_shaders.get_light_shader_reg_info(material.light_shader)
+    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
+    light_shader_info = shaders.get_light_shader_reg_info(material.light_shader)
     tool_shader = get_tool_shader_from_shader_combination(material.surface_shader, material.light_shader, material.specular_shader)
-    
+    """
     print(f"Building material with surface shader {material.surface_shader} ({tool_shader}), light shader {material.light_shader}, specular shader {material.specular_shader}")
     print(f"   Material tint: {material.material_tint}")
     print(f"   Flags: {material.mtl_flags}")
@@ -31,7 +31,7 @@ def build(ape: Ape, material: FMeshMaterial_t):
         print(f"  ({i}) {type}: {reg}")
         if isinstance(reg, FShTexInst_t):
             print(f"       Texture name: {reg.texture_name}")
-
+"""
     
     star_command_assembler = StarCommandAssembler()
     star_command_assembler.push("shader", tool_shader.value)
@@ -84,7 +84,7 @@ def build_textures_from_file_system(apes: Ape | list[Ape], texture_folder_path: 
 
 def _collect_texture_names_used_in_ape(ape: Ape, texture_names: set[str]):
     for material in ape.materials:
-        surface_shader_info = dx8_shaders.get_surface_shader_reg_info(material.surface_shader)
+        surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
         for i in range(surface_shader_info.tex_layer_count):
             register_type = SurfaceShaderRegisterType.layer(i)
             register: FShTexInst_t = material.get_register(register_type)
@@ -92,7 +92,7 @@ def _collect_texture_names_used_in_ape(ape: Ape, texture_names: set[str]):
                 texture_names.add(register.texture_name.lower())
 
 def _build_principled_bsdf_material(material: FMeshMaterial_t, name: str):
-    surface_shader_info = dx8_shaders.get_surface_shader_reg_info(material.surface_shader)
+    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
     
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -124,8 +124,8 @@ def _build_blender_material(material: FMeshMaterial_t, name: str):
     if shader is None:
         return _build_principled_bsdf_material(material, name)
     
-    surface_shader_info = dx8_shaders.get_surface_shader_reg_info(material.surface_shader)
-    light_shader_info = dx8_shaders.get_light_shader_reg_info(material.light_shader)
+    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
+    light_shader_info = shaders.get_light_shader_reg_info(material.light_shader)
 
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -177,7 +177,7 @@ def _build_blender_material(material: FMeshMaterial_t, name: str):
     return mat
 
 def _add_tex_layer_commands(ape: Ape, material: FMeshMaterial_t, star_commands: StarCommandAssembler):
-    surface_shader_info = dx8_shaders.get_surface_shader_reg_info(material.surface_shader)
+    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
 
     tex_layer_id = None
     tex_layer_id_register_layer = None
