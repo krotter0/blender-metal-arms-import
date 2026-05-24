@@ -2,8 +2,11 @@ from enum import Enum, Flag
 
 from ....common.platform import Platform
 
-from ...common.types.common import CFColorMotif
 from .texture import FShTexInst_t
+
+from ...common.types.common import *
+from ....structs.pointer import PointerFieldType
+from ....structs.genericfieldtypes import *
     
 class LightShaderRegisterType(Enum):
     ZMASK = 0
@@ -352,34 +355,34 @@ class FShaderReg_t:
         self.surface_type_flags = surface_type_flags
         self.register_types = register_types
         
-_LIGHT_SHADER_REGISTER_DATATYPES = {
-    LightShaderRegisterType.BUMPMAP: FShTexInst_t,
-    LightShaderRegisterType.ZMASK: FShTexInst_t,
-    LightShaderRegisterType.EMASK: FShTexInst_t,
-    LightShaderRegisterType.SMASK: FShTexInst_t,
-    LightShaderRegisterType.LM_MOTIF: CFColorMotif,
-    LightShaderRegisterType.DMOTIF: CFColorMotif,
-    LightShaderRegisterType.EMOTIF: CFColorMotif,
-    LightShaderRegisterType.SMOTIF: CFColorMotif,
-    LightShaderRegisterType.BUMPMAP_TILE_FACTOR: float,
-    LightShaderRegisterType.SEXP: float,
-    LightShaderRegisterType.LMCOUNT: int,
-    LightShaderRegisterType.LM: FShTexInst_t,
-    LightShaderRegisterType.LM_TC: int #guess
+_LIGHT_SHADER_REGISTER_DATATYPES: dict[LightShaderRegisterType, type[FieldType]] = {
+    LightShaderRegisterType.BUMPMAP: PointerFieldType(FShTexInst_t),
+    LightShaderRegisterType.ZMASK: PointerFieldType(FShTexInst_t),
+    LightShaderRegisterType.EMASK: PointerFieldType(FShTexInst_t),
+    LightShaderRegisterType.SMASK: PointerFieldType(FShTexInst_t),
+    LightShaderRegisterType.LM_MOTIF: PointerFieldType(CFColorMotif),
+    LightShaderRegisterType.DMOTIF: PointerFieldType(CFColorMotif),
+    LightShaderRegisterType.EMOTIF: PointerFieldType(CFColorMotif),
+    LightShaderRegisterType.SMOTIF: PointerFieldType(CFColorMotif),
+    LightShaderRegisterType.BUMPMAP_TILE_FACTOR: f32.INSTANCE,
+    LightShaderRegisterType.SEXP: f32.INSTANCE,
+    LightShaderRegisterType.LMCOUNT: u32.INSTANCE,
+    LightShaderRegisterType.LM: PointerFieldType(FShTexInst_t),
+    LightShaderRegisterType.LM_TC: u32.INSTANCE #guess
 }
 
-_SHADER_REGISTER_DATATYPES = {
-    SurfaceShaderRegisterType.LAYER0: FShTexInst_t,
-    SurfaceShaderRegisterType.LAYER1: FShTexInst_t,
-    SurfaceShaderRegisterType.LAYER2: FShTexInst_t,
-    SurfaceShaderRegisterType.LAYER3: FShTexInst_t,
-    SurfaceShaderRegisterType.DETAILMAP: FShTexInst_t,
-    SurfaceShaderRegisterType.TC0: int,
-    SurfaceShaderRegisterType.TC1: int,
-    SurfaceShaderRegisterType.TC2: int,
-    SurfaceShaderRegisterType.TC3: int,
-    SurfaceShaderRegisterType.ENV_MOTIF: CFColorMotif,
-    SurfaceShaderRegisterType.DETAILMAP_TILE_FACTOR: float
+_SHADER_REGISTER_DATATYPES: dict[SurfaceShaderRegisterType, type[FieldType]] = {
+    SurfaceShaderRegisterType.LAYER0: PointerFieldType(FShTexInst_t),
+    SurfaceShaderRegisterType.LAYER1: PointerFieldType(FShTexInst_t),
+    SurfaceShaderRegisterType.LAYER2: PointerFieldType(FShTexInst_t),
+    SurfaceShaderRegisterType.LAYER3: PointerFieldType(FShTexInst_t),
+    SurfaceShaderRegisterType.DETAILMAP: PointerFieldType(FShTexInst_t),
+    SurfaceShaderRegisterType.TC0: u32.INSTANCE,
+    SurfaceShaderRegisterType.TC1: u32.INSTANCE,
+    SurfaceShaderRegisterType.TC2: u32.INSTANCE,
+    SurfaceShaderRegisterType.TC3: u32.INSTANCE,
+    SurfaceShaderRegisterType.ENV_MOTIF: PointerFieldType(CFColorMotif),
+    SurfaceShaderRegisterType.DETAILMAP_TILE_FACTOR: f32.INSTANCE
 }
 
 FShaders_aLightShaderRegs = [
@@ -926,15 +929,25 @@ def get_light_shader_reg_info(shader: LightShader):
     else:
         return None
 
-def get_shader_reg_datatype(register_type: LightShaderRegisterType | SurfaceShaderRegisterType):
+def get_shader_reg_datatype(register_type: LightShaderRegisterType | SurfaceShaderRegisterType) -> type[FieldType] | None:
     if isinstance(register_type, LightShaderRegisterType):
         return _LIGHT_SHADER_REGISTER_DATATYPES.get(register_type, None)
     else:
         return _SHADER_REGISTER_DATATYPES.get(register_type, None)
     
-def get_tool_shader_from_shader_combination(surface_shader: SurfaceShader, light_shader: LightShader, specular_shader: SpecularShader):
+def get_tool_shader_from_shader_combination(surface_shader: SurfaceShader, light_shader: LightShader, specular_shader: SpecularShader, check_more_combinations: bool = True) -> ToolShader:
     surface_shader = surface_shader.strip_detail()
-    shader = _ENGINE_SHADER_TO_TOOL_SHADER_REMAP.get((surface_shader, light_shader, specular_shader), None)
-    if shader is None:
-        raise ValueError(f"No tool shader mapping found for combination: {surface_shader}, {light_shader}, {specular_shader}")
-    return shader
+
+    combinations = [(surface_shader, light_shader, specular_shader)]
+    if check_more_combinations:
+        if light_shader == LightShader.VLIGHT_MASK_EMISSIVE:
+            combinations.append((surface_shader, LightShader.VLIGHT_BASIC, specular_shader))
+        elif light_shader == LightShader.VLIGHT_MASK_EMISSIVE_CO:
+            combinations.append((surface_shader, LightShader.VLIGHT_BASIC_CO, specular_shader))
+
+    for combination in combinations:
+        shader = _ENGINE_SHADER_TO_TOOL_SHADER_REMAP.get(combination, None)
+        if shader is not None:
+            return shader
+        
+    raise ValueError(f"No tool shader mapping found for combination: {surface_shader}, {light_shader}, {specular_shader}")

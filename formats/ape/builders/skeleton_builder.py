@@ -1,53 +1,55 @@
-from ....common.axis_convert import to_blender_pos
-from ..types.model import Ape
-from ..types.skeleton import FMeshBone_t
-from ....common import vec
-
 import bpy
-import mathutils
+from ..parsers.models.skeleton import ParsedSkeleton
+from ..parsers.skeleton_gc import SkeletonParserGC
+from ..parsers.skeleton_dx import SkeletonParserDX
+from ....common.platform import Platform
+from mathutils import Vector, Matrix
+
+from ..parsers.skeleton import ParsedBone, SkeletonParser
+from ..types.model import FMesh_t
 
 _MIN_BONE_LENGTH = 0.4
 
-def _get_max_distance_to_children(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t]):
-    bone = ape.bones[bone_index]
-    bone_pos = bone.at_rest_bone_to_model_mtx.a
+def _get_max_distance_to_children(bone: ParsedBone):
+    bone_pos = Vector(bone.bone_to_model_matrix[3])
     max_distance = 0.0
 
-    for child_index in bone_children[bone_index]:
-        child_bone = ape.bones[child_index]
-        child_pos = child_bone.at_rest_bone_to_model_mtx.a
-        distance = vec.len(vec.sub(child_pos, bone_pos))
-        if distance > max_distance:
-            max_distance = distance
+    for child in bone.children:
+        child_pos = Vector(child.bone_to_model_matrix[3])
+        distance = (child_pos - bone_pos).length
+        distance = max(distance, max_distance)
 
     return max_distance
 
-def _build_bone(ape: Ape, bone_index: int, bone_children: list[FMeshBone_t], armature):
-    bone = ape.bones[bone_index]
+def _build_bone(armature, bone: ParsedBone, parent_bone_obj: bpy.types.EditBone = None):
     bone_obj = armature.edit_bones.new(bone.name)
 
-    distance_to_children = _get_max_distance_to_children(ape, bone_index, bone_children)
-    bone_length = max(_MIN_BONE_LENGTH, distance_to_children * 1)
+    distance_to_children = _get_max_distance_to_children(bone)
+    bone_length = max(_MIN_BONE_LENGTH, distance_to_children)
 
-    pos = bone.at_rest_bone_to_model_mtx.a
-    head = to_blender_pos(pos)
-    tail = vec.add(head, vec.mul((bone.at_rest_bone_to_model_mtx.z.x, bone.at_rest_bone_to_model_mtx.z.z, bone.at_rest_bone_to_model_mtx.z.y), bone_length))
-    roll = mathutils.Vector((bone.at_rest_bone_to_model_mtx.y.x, bone.at_rest_bone_to_model_mtx.y.z, bone.at_rest_bone_to_model_mtx.y.y))
+    mtx = Matrix(bone.bone_to_model_matrix)
+    y_dir = mtx.col[1].to_3d()
+    z_dir = mtx.col[2].to_3d()
 
+    head = mtx.to_translation()
+    tail = head + y_dir * bone_length
+    roll = z_dir
+    
     bone_obj.use_relative_parent = True
     bone_obj.head = head
     bone_obj.tail = tail
     bone_obj.align_roll(roll)
+    if parent_bone_obj is not None:
+        bone_obj.parent = parent_bone_obj
     return bone_obj
 
-def _update_bone_hierarchy(ape: Ape, bone_index: int, bone_objs):
-    bone = ape.bones[bone_index]
-    if bone.skeleton.parent_bone_index == 255:
-        return
-    bone_objs[bone_index].parent = bone_objs[bone.skeleton.parent_bone_index]
+def _build_bones(armature: bpy.types.Armature, root_bone: ParsedBone, parent_bone_obj: bpy.types.EditBone = None):
+    bone_obj = _build_bone(armature, root_bone, parent_bone_obj)
 
-def build(ape: Ape, name: str = None):
-    name = name or ape.name
+    for child in root_bone.children:
+        _build_bones(armature, child, bone_obj)
+
+def build(parsed_skeleton: ParsedSkeleton, name: str):
     armature = bpy.data.armatures.new(name=name)
 
     armature_object = bpy.data.objects.new(name=name, object_data=armature)
@@ -59,18 +61,8 @@ def build(ape: Ape, name: str = None):
     
     bpy.ops.object.mode_set(mode='EDIT')
 
-    bone_children = [[] for _ in ape.bones]
-    for i, bone in enumerate(ape.bones):
-        parent_index = bone.skeleton.parent_bone_index
-        if parent_index != 255:
-            bone_children[parent_index].append(i)
-
-    bone_objs = [None] * len(ape.bones)
-    for i, bone in enumerate(ape.bones):
-        bone_objs[i] = _build_bone(ape, i, bone_children, armature)
-        
-    for i, bone in enumerate(ape.bones):
-        _update_bone_hierarchy(ape, i, bone_objs)
+    for root_bone in parsed_skeleton.root_bones:
+        _build_bones(armature, root_bone)
 
     bpy.ops.object.mode_set(mode='OBJECT')
 

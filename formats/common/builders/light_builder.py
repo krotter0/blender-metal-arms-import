@@ -1,90 +1,92 @@
 import bpy
 import math
 
+from ..parsers.models.light import ParsedLight
+
 from ..types.common import CFColorRGB
 from ....common import axis_convert
-from mathutils import Quaternion, Color
+from mathutils import Quaternion, Color, Matrix
 
-from ..types.lights import FLightInit_t, LightType
+from ..types.light import LightType
 
-def build(index: int, lightinit: FLightInit_t):
+def build(index: int, parsed_light: ParsedLight) -> bpy.types.Object | None:
     _LIGHT_TYPE_TO_BUILDER_MAP = {
         LightType.DIRECTIONAL: _build_light_directional,
         LightType.OMNIDIRECTIONAL: _build_light_omnidirectional,
         LightType.SPOT: _build_light_spot,
     }
-    builder = _LIGHT_TYPE_TO_BUILDER_MAP.get(lightinit.type)
+    builder = _LIGHT_TYPE_TO_BUILDER_MAP.get(parsed_light.type)
     if builder:
-        obj = builder(index, lightinit)
+        obj = builder(index, parsed_light)
         if obj is not None:
             bpy.context.collection.objects.link(obj)
-            _set_common_light_properties(obj, obj.data, lightinit)
+            _set_common_light_properties(obj, obj.data, parsed_light)
         return obj
     else:
-        print(f"Unsupported light type: {lightinit.type}")
+        print(f"Unsupported light type: {parsed_light.type}")
 
-def build_ambient(color: CFColorRGB, intensity: float):
+def build_ambient(color: tuple[float, float, float], intensity: float):
     obj = _build_light_ambient(color, intensity)
     if obj is not None:
         bpy.context.collection.objects.link(obj)
 
-def _try_get_name(lightinit: FLightInit_t, default_name: str = None):
-    if lightinit.name is not None and lightinit.name != "":
+def _try_get_name(parsed_light: ParsedLight, default_name: str = None):
+    if parsed_light.name is not None and parsed_light.name != "":
         # Strip star commands
-        split = lightinit.name.split("*")
+        split = parsed_light.name.split("*")
         return split[0]
     
     return default_name
 
-def _set_blender_obj_transform(obj, lightinit: FLightInit_t):
-    blender_mtx = axis_convert.mtx43_to_blender_mtx(lightinit.mtx_orientation)
+def _set_blender_obj_transform(obj, parsed_light: ParsedLight):
+    orientation_mtx = Matrix(parsed_light.mtx_orientation)
     obj.rotation_mode = 'QUATERNION'
-    obj.rotation_quaternion = blender_mtx.to_quaternion()
-    obj.location = axis_convert.to_blender_pos(lightinit.influence.pos)
+    obj.rotation_quaternion = orientation_mtx.to_quaternion()
+    obj.location = parsed_light.pos
 
-def _set_common_light_properties(obj, light: bpy.types.Light, lightinit: FLightInit_t):
-    color = Color((lightinit.motif.r * 255, lightinit.motif.g * 255, lightinit.motif.b * 255))
+def _set_common_light_properties(obj, light: bpy.types.Light, parsed_light: ParsedLight):
+    color = Color((parsed_light.motif_color[0] * 255, parsed_light.motif_color[1] * 255, parsed_light.motif_color[2] * 255))
     light.color = color.from_srgb_to_scene_linear()
-    light.energy = lightinit.intensity
-    light.shadow_soft_size = lightinit.influence.radius
+    light.energy = parsed_light.intensity
+    light.shadow_soft_size = parsed_light.radius
 
     obj.data["ma_light_props"] = {
-        "fIntensity": lightinit.intensity,
-        "fRadius": lightinit.influence.radius,
+        "fIntensity": parsed_light.intensity,
+        "fRadius": parsed_light.radius,
     }
 
-def _build_light_omnidirectional(index: int, lightinit: FLightInit_t):
-    name = _try_get_name(lightinit, f"omnilight_{index}")
+def _build_light_omnidirectional(index: int, parsed_light: ParsedLight):
+    name = _try_get_name(parsed_light, f"omnilight_{index}")
     light = bpy.data.lights.new(name, type='POINT')
     obj = bpy.data.objects.new(name, light)
 
-    _set_blender_obj_transform(obj, lightinit)
+    _set_blender_obj_transform(obj, parsed_light)
 
     return obj
 
-def _build_light_directional(index: int, lightinit: FLightInit_t):
-    name = _try_get_name(lightinit, f"directionallight_{index}")
+def _build_light_directional(index: int, parsed_light: ParsedLight):
+    name = _try_get_name(parsed_light, f"directionallight_{index}")
     light = bpy.data.lights.new(name, type='SUN')
     obj = bpy.data.objects.new(name, light)
 
-    _set_blender_obj_transform(obj, lightinit)
+    _set_blender_obj_transform(obj, parsed_light)
 
     return obj
 
-def _build_light_spot(index: int, lightinit: FLightInit_t):
-    name = _try_get_name(lightinit, f"spotlight_{index}")
+def _build_light_spot(index: int, parsed_light: ParsedLight):
+    name = _try_get_name(parsed_light, f"spotlight_{index}")
     light = bpy.data.lights.new(name, type='SPOT')
     obj = bpy.data.objects.new(name, light)
     
-    light.spot_size = lightinit.spot_outer_radians
-    light.spot_blend = -((lightinit.spot_inner_radians / light.spot_size) - 1)
+    light.spot_size = parsed_light.spot_outer_radians
+    light.spot_blend = -((parsed_light.spot_inner_radians / light.spot_size) - 1)
 
-    _set_blender_obj_transform(obj, lightinit)
+    _set_blender_obj_transform(obj, parsed_light)
     obj.rotation_quaternion = obj.rotation_quaternion @ Quaternion((1.0, 0.0, 0.0), math.radians(90.0))
 
     return obj
 
-def _build_light_ambient(color: CFColorRGB, intensity: float):
+def _build_light_ambient(color: tuple[float, float, float], intensity: float):
     name = "ambient"
     obj = bpy.data.objects.new(name, None)
 
@@ -92,9 +94,9 @@ def _build_light_ambient(color: CFColorRGB, intensity: float):
     obj.empty_display_size = 2.5
 
     game_data = {
-        "red": color.r,
-        "green": color.g,
-        "blue": color.b,
+        "red": color[0],
+        "green": color[1],
+        "blue": color[2],
         "intensity": intensity,
     }
 

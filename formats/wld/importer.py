@@ -1,12 +1,18 @@
 import bpy
+import logging
+from io import BytesIO
+from pathlib import Path
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, EnumProperty, BoolProperty
 from bpy.types import Operator
 
+from ...common.report_stopwatch import ReportStopwatch
 from ...common.platform import Platform
-from ...common.binary_reader import BinaryReader
-from .types.world import World
+from .types.world import FData_WorldFileHeader_t
+from .parsers.world import WorldParser
 from .builders import world_builder
+
+logger = logging.getLogger(__name__)
         
 class ImportWld(Operator, ImportHelper):
     """Import a Metal Arms Compiled World (.wld) file"""
@@ -120,10 +126,9 @@ class ImportWld(Operator, ImportHelper):
         context.window_manager.ma_texture_import_settings.draw(context, layout)
 
     def _read_wld(self, context):
+        stopwatch = ReportStopwatch(self.filepath, self)
+        stopwatch.start()
         platform = Platform.parse(self.platform)
-        with BinaryReader(self.filepath, platform.is_big_endian()) as reader:
-            wld = World(platform)
-            wld.read(reader)
 
         options = world_builder.WorldBuildOptions()
         options.platform = platform
@@ -138,7 +143,23 @@ class ImportWld(Operator, ImportHelper):
         options.load_external_meshes = self.load_external_meshes
         options.texture_folder_path = context.window_manager.ma_texture_import_settings.get_path()
         options.texture_allow_recurse = context.window_manager.ma_texture_import_settings.texture_allow_recurse
+        options.texture_extension = context.window_manager.ma_texture_import_settings.texture_extension
 
-        world_builder.build(wld, options)
+        world = FData_WorldFileHeader_t()
+        parser = WorldParser(platform)
+        parsed_world = None
+        with world.bind_to_file(self.filepath, big_endian=platform.is_big_endian(), tags=[platform]):
+            try:
+                parsed_world = parser.parse(world)
+            except Exception:
+                logger.exception(
+                    "Failed to parse .wld file '%s' for selected platform '%s'",
+                    self.filepath,
+                    self.platform,
+                )
+                self.report({'ERROR'}, f"Failed to parse .wld, possible platform mismatch. See console for details.")
+                return {'CANCELLED'}
+        world_builder.build(parsed_world, options)
+        stopwatch.report()
 
         return {'FINISHED'}

@@ -1,57 +1,29 @@
-import math
 import os
 import bpy
-import mathutils
+from mathutils import Color
+from ..parsers.models.material import ParsedMotif, ParsedMotif, ParsedTextureInstance, ParsedMaterial
 from ....common.star_command_assembler import StarCommandAssembler
-from ...common.types.common import CFColorMotif
-from ..types.model import Ape, FMeshMaterial_t, MtlFlags
-from ..types.texture import FShTexInst_t, TexLayerIdFlags
-from ..types.shaders import SurfaceShaderRegisterType, LightShaderRegisterType, get_tool_shader_from_shader_combination
-from ..types import shaders
+from ..types.shaders import SurfaceShaderRegisterType, LightShaderRegisterType
 
-def build(ape: Ape, material: FMeshMaterial_t):
-    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
-    light_shader_info = shaders.get_light_shader_reg_info(material.light_shader)
-    tool_shader = get_tool_shader_from_shader_combination(material.surface_shader, material.light_shader, material.specular_shader)
-    """
-    print(f"Building material with surface shader {material.surface_shader} ({tool_shader}), light shader {material.light_shader}, specular shader {material.specular_shader}")
-    print(f"   Material tint: {material.material_tint}")
-    print(f"   Flags: {material.mtl_flags}")
-    print(f"   Tool shader: {tool_shader.value} ({tool_shader})")
-    print(f"   Surface registers for shader {material.surface_shader}")
-    for i, reg in enumerate(material.surface_registers):
-        type = surface_shader_info.register_types[i]
-        print(f"  ({i}) {type}: {reg}")
-        if isinstance(reg, FShTexInst_t):
-            print(f"       Texture name: {reg.texture_name}")
-
-    print(f"   Light registers for shader {material.light_shader}:")
-    for i, reg in enumerate(material.light_registers):
-        type = light_shader_info.register_types[i]
-        print(f"  ({i}) {type}: {reg}")
-        if isinstance(reg, FShTexInst_t):
-            print(f"       Texture name: {reg.texture_name}")
-"""
-    
+def build(material: ParsedMaterial) -> bpy.types.Material:
     star_command_assembler = StarCommandAssembler()
-    star_command_assembler.push("shader", tool_shader.value)
-    _add_flag_star_commands(material, star_command_assembler)
-    _add_tex_layer_commands(ape, material, star_command_assembler)
+    star_command_assembler.push("shader", material.shader.value)
+    for star_command in material.star_commands:
+        star_command_assembler.push(star_command)
 
-    layer0_register: FShTexInst_t = material.get_register(SurfaceShaderRegisterType.LAYER0)
+    layer0_register: ParsedTextureInstance = material.get_register_value(SurfaceShaderRegisterType.LAYER0)
     name = layer0_register.texture_name if layer0_register is not None else "material"
     name = f"{name}{star_command_assembler.assemble()}"
 
-    mat = _build_blender_material(material, name)
-    return mat
+    return _build_blender_material(material, name)
 
-def build_textures_from_file_system(apes: Ape | list[Ape], texture_folder_path: str, recurse: bool = False):
-    if not isinstance(apes, list):
-        apes = [apes]
+def build_textures_from_file_system(materials: list[ParsedMaterial], texture_folder_path: str, recurse: bool = False, allowed_extensions: list[str] = [".tga", ".png", ".jpg", ".jpeg"]):
+    if not isinstance(materials, list):
+        materials = [materials]
 
     texture_names = set()
-    for ape in apes:
-        _collect_texture_names_used_in_ape(ape, texture_names)
+    for material in materials:
+        _collect_texture_names_used_in_material(material, texture_names)
 
     for img in bpy.data.images:
         if img.name in texture_names:
@@ -67,7 +39,7 @@ def build_textures_from_file_system(apes: Ape | list[Ape], texture_folder_path: 
             file_name, extension = os.path.splitext(base_file_name)
             file_name = file_name.lower()
             extension = extension.lower()
-            if extension not in [".tga", ".png", ".jpg", ".jpeg"]:
+            if extension not in allowed_extensions:
                 continue
             if file_name in texture_names:
                 file_path = os.path.join(root, file)
@@ -82,18 +54,12 @@ def build_textures_from_file_system(apes: Ape | list[Ape], texture_folder_path: 
         if not recurse:
             break
 
-def _collect_texture_names_used_in_ape(ape: Ape, texture_names: set[str]):
-    for material in ape.materials:
-        surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
-        for i in range(surface_shader_info.tex_layer_count):
-            register_type = SurfaceShaderRegisterType.layer(i)
-            register: FShTexInst_t = material.get_register(register_type)
-            if register is not None:
-                texture_names.add(register.texture_name.lower())
+def _collect_texture_names_used_in_material(material: ParsedMaterial, texture_names: set[str]):
+    for register in material.surface_registers.values():
+        if isinstance(register.value, ParsedTextureInstance):
+            texture_names.add(register.value.texture_name.lower())
 
-def _build_principled_bsdf_material(material: FMeshMaterial_t, name: str):
-    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
-    
+def _build_principled_bsdf_material(material: ParsedMaterial, name: str):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
 
@@ -107,9 +73,9 @@ def _build_principled_bsdf_material(material: FMeshMaterial_t, name: str):
     principled_bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     principled_bsdf.location = (400, 0)
 
-    for i in range(surface_shader_info.tex_layer_count):
+    for i in range(material.tex_layer_count):
         register_type = SurfaceShaderRegisterType.layer(i)
-        register: FShTexInst_t = material.get_register(register_type)
+        register: ParsedTextureInstance = material.get_register_value(register_type)
         if register is not None:
             tex_node = _build_texture_node(register, mat, i)
             if i == 0:
@@ -119,13 +85,10 @@ def _build_principled_bsdf_material(material: FMeshMaterial_t, name: str):
 
     return mat
 
-def _build_blender_material(material: FMeshMaterial_t, name: str):
+def _build_blender_material(material: ParsedMaterial, name: str):
     shader = bpy.data.node_groups.get("FANG Material")
     if shader is None:
         return _build_principled_bsdf_material(material, name)
-    
-    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
-    light_shader_info = shaders.get_light_shader_reg_info(material.light_shader)
 
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -143,32 +106,32 @@ def _build_blender_material(material: FMeshMaterial_t, name: str):
 
     links.new(fang_shadergroup.outputs[0], output.inputs["Surface"])
 
-    emissive_register: CFColorMotif = material.get_register(LightShaderRegisterType.EMOTIF)
+    emissive_register: ParsedMotif = material.get_register_value(LightShaderRegisterType.EMOTIF)
     if emissive_register is not None:
-        fang_shadergroup.inputs["Emissive"].default_value = emissive_register.r
+        fang_shadergroup.inputs["Emissive"].default_value = emissive_register.motif_color[0]
 
-    emissive_mask: FShTexInst_t = material.get_register(LightShaderRegisterType.EMASK)
+    emissive_mask: ParsedTextureInstance = material.get_register_value(LightShaderRegisterType.EMASK)
     if emissive_mask is not None:
         tex_node = _build_texture_node(emissive_mask, mat, 3)
         links.new(tex_node.outputs["Color"], fang_shadergroup.inputs["Emissive Mask"])
 
-    bumpmap: FShTexInst_t = material.get_register(LightShaderRegisterType.BUMPMAP)
+    bumpmap: ParsedTextureInstance = material.get_register_value(LightShaderRegisterType.BUMPMAP)
     if bumpmap is not None:
         tex_node = _build_texture_node(bumpmap, mat, 4)
         links.new(tex_node.outputs["Color"], fang_shadergroup.inputs["Bump Map"])
 
-    detailmap = material.get_register(SurfaceShaderRegisterType.DETAILMAP)
+    detailmap: ParsedTextureInstance = material.get_register_value(SurfaceShaderRegisterType.DETAILMAP)
     if detailmap is not None:
         tex_node = _build_texture_node(detailmap, mat, 5)
         links.new(tex_node.outputs["Color"], fang_shadergroup.inputs["Detail Map"])
 
-    tint = mathutils.Color((material.material_tint.r, material.material_tint.g, material.material_tint.b))
+    tint = Color(material.tint)
     tint = tint.from_srgb_to_scene_linear()
     fang_shadergroup.inputs["Tint Color"].default_value = (tint.r, tint.g, tint.b, 1.0)
 
-    for i in range(surface_shader_info.tex_layer_count):
+    for i in range(material.tex_layer_count):
         register_type = SurfaceShaderRegisterType.layer(i)
-        register: FShTexInst_t = material.get_register(register_type)
+        register: ParsedTextureInstance = material.get_register_value(register_type)
         if register is not None:
             tex_node = _build_texture_node(register, mat, i)
             if i == 0:
@@ -176,69 +139,13 @@ def _build_blender_material(material: FMeshMaterial_t, name: str):
 
     return mat
 
-def _add_tex_layer_commands(ape: Ape, material: FMeshMaterial_t, star_commands: StarCommandAssembler):
-    surface_shader_info = shaders.get_surface_shader_reg_info(material.surface_shader)
-
-    tex_layer_id = None
-    tex_layer_id_register_layer = None
-    for i in range(surface_shader_info.tex_layer_count):
-        register_type = SurfaceShaderRegisterType.layer(i)
-        register: FShTexInst_t = material.get_register(register_type)
-        if register is not None and register.tex_layer_id != 255:
-            if tex_layer_id is not None and register.tex_layer_id != tex_layer_id:
-                print(f"Warning: Material has multiple different tex layer ids, skipping...")
-                return
-            tex_layer_id = register.tex_layer_id
-            tex_layer_id_register_layer = i
-
-    if tex_layer_id is None:
-        return
-    
-    star_commands.push("id", tex_layer_id)
-    tex_layer = None
-    for layer in ape.tex_layer_id_array:
-        if layer.tex_layer_id == tex_layer_id:
-            tex_layer = layer
-            break
-
-    assert tex_layer is not None
-
-    if tex_layer.flags & TexLayerIdFlags.BEGIN_SCROLLING:
-        star_commands.push("scroll", tex_layer.scroll_st_per_sec.x, 1.0, tex_layer.scroll_st_per_sec.y, 1.0)
-    if tex_layer.flags & TexLayerIdFlags.BEGIN_ROTATING:
-        star_commands.push("rotate", tex_layer.uv_degree_rotation_per_sec, tex_layer.uv_rot_anchor[0], tex_layer.uv_rot_anchor[1])
-    if tex_layer.flags & TexLayerIdFlags.BEGIN_FLIPPING:
-        frames_per_sec = 0.0 if (tex_layer.frames_per_flip == 0) else (60.0 / tex_layer.frames_per_flip)
-        star_commands.push("anim", tex_layer.flip_page_count, frames_per_sec)
-
-def _add_flag_star_commands(material: FMeshMaterial_t, star_commands: StarCommandAssembler):
-    affect_angle = math.acos(material.affect_angle) * 2.0 * (180.0 / math.pi)
-    if material.mtl_flags & MtlFlags.NOCOLLIDE:
-        star_commands.push("nocoll")
-    #if material.mtl_flags & material.mtl_flags.RENDER_LAST: # TODO: This is set when *order was used, need to figure out what parameter is needed to be set
-    #    star_commands.push("order", ???)
-    if material.mtl_flags & MtlFlags.ZWRITE_ON:
-        star_commands.push("writez")
-    if material.mtl_flags & MtlFlags.DO_NOT_TINT:
-        star_commands.push("nomeshtint")
-    if material.mtl_flags & MtlFlags.DO_NOT_CAST_SHADOWS:
-        star_commands.push("noshadows")
-    if material.mtl_flags & MtlFlags.INVERT_EMISSIVE_MASK:
-        star_commands.push("angtrans")
-    if material.mtl_flags & MtlFlags.NO_ALPHA_SCROLL:
-        star_commands.push("noascroll")
-    if material.mtl_flags & MtlFlags.ANGULAR_EMISSIVE:
-        star_commands.push("eangle", affect_angle)
-    if material.mtl_flags & MtlFlags.ANGULAR_TRANSLUCENCY:
-        star_commands.push("tangle", affect_angle)
-
 def _find_image(texture_name: str):
     texture_name = texture_name.lower()
     for img in bpy.data.images:
         if img.name.lower() == texture_name:
             return img
 
-def _build_texture_node(texture: FShTexInst_t, mat: bpy.types.Material, offset: int = 0):
+def _build_texture_node(texture: ParsedTextureInstance, mat: bpy.types.Material, offset: int = 0):
     tex_name = f"{texture.texture_name}.tga"
     img = _find_image(tex_name)
     if img is None:

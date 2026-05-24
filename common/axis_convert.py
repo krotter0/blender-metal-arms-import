@@ -1,12 +1,11 @@
 from ..formats.common.types.common import CFMtx43, CFMtx43A
 from mathutils import Matrix
 
-
 def to_blender_pos(pos):
     return (pos[0], pos[2], pos[1])
 
 def to_blender_rot(rot):
-    return (-rot.a, rot.x, rot.z, rot.y)
+    return (-rot[3], rot[0], rot[2], rot[1])
 
 def mtx43_to_blender_mtx(mtx: CFMtx43):
     return Matrix((

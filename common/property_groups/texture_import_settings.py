@@ -1,7 +1,7 @@
 import bpy
 from pathlib import Path
 from bpy.types import PropertyGroup
-from bpy.props import StringProperty, BoolProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty
 
 class TextureImportSettings(PropertyGroup):
     load_textures: BoolProperty(
@@ -24,6 +24,18 @@ class TextureImportSettings(PropertyGroup):
         default=True
     )
 
+    texture_extension: EnumProperty(
+        name="Texture extension",
+        description="Which file extension to allow for imported textures.",
+        items=[
+            (".png", ".png", ""),
+            (".tga", ".tga", ""),
+            (".jpg", ".jpg", ""),
+            (".jpeg", ".jpeg", ""),
+        ],
+        default=".png"
+    )
+
     texture_folder_valid: bpy.props.BoolProperty(
         name="Texture Folder Valid",
         default=False,
@@ -33,11 +45,19 @@ class TextureImportSettings(PropertyGroup):
     def draw(self, context, layout):
         row = layout.row()
         row.prop(self, "load_textures")
+
         row = layout.row()
         row.enabled = self.load_textures
         row.alert = not self.texture_folder_valid
         row.prop(self, "texture_folder_path")
+        
+        row = layout.row()
+        row.enabled = self.load_textures
         row.prop(self, "texture_allow_recurse")
+        
+        row = layout.row()
+        row.enabled = self.load_textures
+        row.prop(self, "texture_extension")
 
     def is_valid(self):
         return not self.load_textures or Path(self.texture_folder_path).is_dir()
