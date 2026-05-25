@@ -20,7 +20,15 @@ class ModelParser:
 
     def _indices_to_triangle_list_faces(self, indices: Sequence[int], triangle_count: int, start_index: int = 0):
         end_index = start_index + triangle_count * 3
-        return [(indices[i], indices[i + 1], indices[i + 2]) for i in range(start_index, end_index, 3)]
+        faces = []
+        for i in range(start_index, end_index, 3):
+            i0 = indices[i]
+            i1 = indices[i + 1]
+            i2 = indices[i + 2]
+
+            if i0 != i1 and i1 != i2 and i0 != i2:
+                faces.append((i0, i1, i2))
+        return faces
 
     def _indices_to_triangle_strip_faces(self, indices: Sequence[int], triangle_count: int, start_index: int = 0):
         faces = []

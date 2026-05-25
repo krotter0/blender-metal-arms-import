@@ -128,11 +128,6 @@ def _build_mesh(parsed_model: ParsedModel, parsed_mesh: ParsedMesh, armature_obj
     mesh = bpy.data.meshes.new(mesh_name)
     mesh.from_pydata(list(parsed_mesh.verts), [], list(parsed_mesh.faces))
     mesh.update()
-    """
-    had_errors = mesh.validate(verbose=True)
-    if had_errors:
-        raise RuntimeError(f"Mesh '{mesh_name}' had errors during validation")
-    """
 
     if parsed_mesh.uvs != None:
         _build_uvs(mesh, parsed_mesh)
@@ -145,8 +140,6 @@ def _build_mesh(parsed_model: ParsedModel, parsed_mesh: ParsedMesh, armature_obj
 
     if materials is not None:
         _apply_materials(mesh, parsed_mesh, materials)
-
-    mesh.update()
 
     obj = bpy.data.objects.new(mesh_name, mesh)
 
