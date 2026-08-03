@@ -35,6 +35,7 @@ class ImportApe(Operator, ImportHelper):
         items=[
             ("DX", "Xbox", ""),
             ("GC", "GameCube", ""),
+            ("DX_BETA", "Xbox (Beta version)", ""),
         ],
         default="DX"
     )
@@ -121,7 +122,7 @@ class ImportApe(Operator, ImportHelper):
         options.texture_allow_recurse = context.window_manager.ma_texture_import_settings.texture_allow_recurse
         options.texture_extension = context.window_manager.ma_texture_import_settings.texture_extension
 
-        parser = ModelParserDX() if platform == Platform.DX else ModelParserGC()
+        parser = ModelParserGC() if platform == Platform.GC else ModelParserDX()
         ape = FMesh_t()
         parsed_model = None
         with ape.bind_to_file(self.filepath, big_endian=platform.is_big_endian(), tags=[platform]):

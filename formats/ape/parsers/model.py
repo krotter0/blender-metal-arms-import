@@ -1,5 +1,6 @@
 from collections.abc import Sequence
-from typing import Self
+
+from ....common.platform import Platform
 
 from ...common.parsers.light import LightParser
 from ....structs.pointer import Pointer
@@ -74,7 +75,10 @@ class ModelParser:
         if self._model.material_count == 0:
             self._parsed_model.materials = []
         else:
-            materials = [self._material_parser.parse(mat, self._model) for mat in self._model.materials]
+            model_materials = self._model.materials
+            if self._model.memory.has_tag(Platform.DX_BETA):
+                model_materials = self._model.materials_beta
+            materials = [self._material_parser.parse(mat, self._model) for mat in model_materials]
             self._parsed_model.materials = materials
 
     def parse(self, model: FMesh_t, lod_filter: set[int] = None, streaming_pointer: Pointer[None] = None):

@@ -35,7 +35,7 @@ def _load_external_meshes(world: ParsedWorld, options: WorldBuildOptions) -> dic
         if worldshape.type == WorldShapeType.MESH and worldshape.shape is not None:
             used_meshes.add(worldshape.shape.mesh_name)
 
-    model_parser = ModelParserDX() if options.platform == Platform.DX else ModelParserGC()
+    model_parser = ModelParserGC() if options.platform == Platform.GC else ModelParserDX()
 
     wld_path = Path(options.filepath)
     loaded_meshes = {}

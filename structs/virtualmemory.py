@@ -25,6 +25,9 @@ class VirtualMemory:
     def _get_tags(self):
         return self._tags
 
+    def has_tag(self, tag):
+        return tag in self._tags
+
     def readable(self):
         return self._readable
     

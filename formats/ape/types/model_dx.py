@@ -73,3 +73,20 @@ class FDX8Mesh_t(Struct):
     coll_vert_buffer: Pointer[Pointer[CFVec3]] = PointerTo(PointerTo(CFVec3))
     indices_count: IterablePointer[Pointer[u16]] = PointerToIterable(u16, 'ib_count')
     dxibs: IterablePointer[Pointer[u16]] = PointerToIterable(PointerTo(u16), 'ib_count')
+
+    
+# Beta struct differences
+class FDX8MeshCluster_t_Beta(Struct):
+    strip_count: int = Field(u16)
+    flags: int = Field(u8)
+    segment_idx: int = Field(u8)
+    vb_index: int = Field(u8)
+    ib_index: int = Field(u8)
+    part_id: int = Field(u8)
+    lod_id: int = Field(u8)
+    tri_list: FDX8MeshTriList_t = Field(FDX8MeshTriList_t)
+    strip_buffers: IterablePointer[FDX8MeshStrip_t] = PointerToIterable(FDX8MeshStrip_t, 'strip_count')
+
+class FDX8MeshMaterial_t_Beta(Struct):
+    clusters: IterablePointer[FDX8MeshCluster_t_Beta] = PointerToIterable(FDX8MeshCluster_t_Beta, 'cluster_count')
+    cluster_count: int = Field(u32)

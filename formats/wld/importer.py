@@ -32,6 +32,7 @@ class ImportWld(Operator, ImportHelper):
         items=[
             ("DX", "Xbox", ""),
             ("GC", "GameCube", ""),
+            ("DX_BETA", "Xbox (Beta version)", ""),
         ],
         default="DX"
     )

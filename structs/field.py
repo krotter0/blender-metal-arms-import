@@ -35,6 +35,14 @@ class RequiresTag(TagModifier):
     def is_active(self, tag_set: set):
         return self.tag in tag_set
 
+class RequiresEitherTag(TagModifier):
+    def __init__(self, tags: list[any], field: BaseField):
+        self.field = field
+        self.tags = tags
+
+    def is_active(self, tag_set: set):
+        return any(tag in tag_set for tag in self.tags)
+
 class Field(BaseField):
     def __init__(self, field_type: FieldType | type[FieldType]):
         if isinstance(field_type, type):

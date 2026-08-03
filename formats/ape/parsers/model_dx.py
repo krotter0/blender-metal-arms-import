@@ -133,7 +133,11 @@ class ModelParserDX(ModelParser):
         )
     
     def _parse_clusters(self):
-        for mat_idx, mat in enumerate(self._model.materials):
+        materials = self._model.materials
+        if self._model.memory.has_tag(Platform.DX_BETA):
+            materials = self._model.materials_beta
+
+        for mat_idx, mat in enumerate(materials):
             for cluster in mat.platform_data_dx.deref.clusters:
                 if self._lod_filter is not None and cluster.lod_id not in self._lod_filter:
                     continue

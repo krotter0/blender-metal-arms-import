@@ -2,7 +2,7 @@ from enum import Flag
 
 from ....common.platform import Platform
 
-from .model_dx import FDX8MeshMaterial_t, FDX8Mesh_t
+from .model_dx import FDX8MeshMaterial_t, FDX8MeshMaterial_t_Beta, FDX8Mesh_t
 from .model_gc import FGCMeshMaterial_t, FGCMesh_t
 from .skeleton import *
 from ....structs.field import *
@@ -12,7 +12,6 @@ from ....structs.virtualmemory import *
 from ...common.types.common import *
 from ...common.types.light import *
 from .texture import *
-from ..types import model as model_old
 
 class MtlFlags(Flag):
     NONE = 0x0000
@@ -61,6 +60,34 @@ class FMeshMaterial_t(Struct):
     material_tint: CFColorRGB = Field(CFColorRGB)
     average_vert_pos: CFVec3 = Field(CFVec3)
     hash_key: int = Field(u32)
+    
+class FMeshMaterial_t_Beta(Struct):
+    light_registers: Pointer[None] = VoidPointerField()
+    surface_registers: Pointer[None] = VoidPointerField()
+
+    light_shader_idx: int = Field(u8)
+    specular_shader_idx: int = Field(u8)
+    surface_shader_idx: int = Field(u16)
+
+    part_id_mask: int = Field(u32)
+    BeginUnion()
+    platform_data_dx: Pointer[FDX8MeshMaterial_t_Beta] = RequiresTag(Platform.DX_BETA, PointerTo(FDX8MeshMaterial_t_Beta))
+    EndUnion()
+
+    lod_mask: int = Field(u8)
+    depth_bias_level: int = Field(u8)
+    base_st_sets: int = Field(u8)
+    lightmap_st_sets: int = Field(u8)
+    tex_layer_id_index: list[int] = ArrayOf(u8, 4)
+    affect_angle: float = Field(f32)
+    affect_normal: list[float] = ArrayOf(s8, 3)
+    affect_bone_id: int = Field(s8)
+    compressed_radius: int = Field(u8)
+    Padding(1)
+    mtl_flags: MtlFlags = Field(EnumType(MtlFlags, 2))
+    material_tint: CFColorRGB = Field(CFColorRGB)
+    average_vert_pos: CFVec3 = Field(CFVec3)
+    hash_key: int = Field(u32)
 
 class FMesh_t(Struct):
     name: str = Field(FixedSizeString(16))
@@ -91,11 +118,14 @@ class FMesh_t(Struct):
     
     lights: IterablePointer[FLightInit_t] = PointerToIterable(FLightInit_t, 'light_count')
     skeleton_index_array: Pointer[int] = PointerTo(u8)
+    BeginUnion()
     materials: IterablePointer[FMeshMaterial_t] = PointerToIterable(FMeshMaterial_t, 'material_count')
+    materials_beta: IterablePointer[FMeshMaterial_t_Beta] = PointerToIterable(FMeshMaterial_t_Beta, 'material_count')
+    EndUnion()
     coll_trees = Skip(4)
     tex_layer_id_array: IterablePointer[FMeshTexLayerID_t] = PointerToIterable(FMeshTexLayerID_t, 'tex_layer_id_count')
     
     BeginUnion()
-    mesh_is_dx: Pointer[FDX8Mesh_t] = RequiresTag(Platform.DX, PointerTo(FDX8Mesh_t))
+    mesh_is_dx: Pointer[FDX8Mesh_t] = RequiresEitherTag([Platform.DX, Platform.DX_BETA], PointerTo(FDX8Mesh_t))
     mesh_is_gc: Pointer[FGCMesh_t] = RequiresTag(Platform.GC, PointerTo(FGCMesh_t))
     EndUnion()

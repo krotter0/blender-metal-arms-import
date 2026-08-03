@@ -26,7 +26,7 @@ class WorldParser:
         self._worldshape_parser = WorldShapeParser()
         self._volume_parser = VolumeParser()
         self._light_parser = LightParser()
-        self._model_parser = ModelParserDX() if platform == Platform.DX else ModelParserGC()
+        self._model_parser = ModelParserGC() if platform == Platform.GC else ModelParserDX()
 
     def _parse_meshes(self, world: FData_WorldFileHeader_t):
         meshes: list[ParsedModel] = []
