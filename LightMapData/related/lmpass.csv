@@ -1,0 +1,2 @@
+# <mesh>,<texture>,<copy>: retail let light through the mesh; the copy (under 12 characters) sits where pasm's lightmapper does not look (pasmlayout.csv). Program.cs _LmPass.
+gocrbldgls1,tecr_glas01,tecr_glas1x

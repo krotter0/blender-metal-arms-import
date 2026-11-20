@@ -81,9 +81,10 @@ class ModelParserDX(ModelParser):
     def _get_cluster_buffers(self, vb: _ParsedVBDX, ib: list[int], faces: list[tuple[int, int, int]]):
         vertices_count = 0
         vertex_remap = {}
-        
+
         used_indices = set()
         used_indices.update(*faces)
+        used_indices = list(used_indices)
 
         for index in used_indices:
             vertex_remap[index] = vertices_count
@@ -94,28 +95,33 @@ class ModelParserDX(ModelParser):
         normals = [vb.normals[i] for i in used_indices]
         colors = [vb.colors[i] for i in used_indices]
         faces = [(vertex_remap[i0], vertex_remap[i1], vertex_remap[i2]) for (i0, i1, i2) in faces]
-        return verts, uvs, normals, colors, faces
+        return verts, uvs, normals, colors, faces, used_indices
 
-    def _parse_cluster(self, cluster: FDX8MeshCluster_t, material_idx: int):
+    def _parse_cluster(self, cluster: FDX8MeshCluster_t, material_idx: int, cluster_idx: int = None):
         ib_index = cluster.ib_index
         ib = self._ibs[ib_index]
         tri_list = cluster.tri_list
 
         faces = []
+        triangle_ids = []
+        corners = []
+        next_id = 0
         if tri_list.tri_count > 0:
-            tri_list_faces = self._indices_to_triangle_list_faces(ib, tri_list.tri_count, tri_list.start_vindex)
+            tri_list_faces = self._indices_to_triangle_list_faces(ib, tri_list.tri_count, tri_list.start_vindex, triangle_ids, corners, next_id)
             faces.extend(tri_list_faces)
+            next_id += tri_list.tri_count
 
         if cluster.strip_count > 0:
             for strip_buffer in cluster.strip_buffers:
-                strip_faces = self._indices_to_triangle_strip_faces(ib, strip_buffer.tri_count, strip_buffer.start_vindex)
+                strip_faces = self._indices_to_triangle_strip_faces(ib, strip_buffer.tri_count, strip_buffer.start_vindex, triangle_ids, corners, next_id)
                 faces.extend(strip_faces)
+                next_id += len(strip_faces)
 
         seg = self._model.segs[cluster.segment_idx]
         bone_idx = seg.bone_mtx_indices[0] if seg.bone_mtx_count > 0 else None
 
         vb = self._vbs[cluster.vb_index]
-        verts, uvs, normals, colors, faces = self._get_cluster_buffers(vb, ib, faces)
+        verts, uvs, normals, colors, faces, vertex_ids = self._get_cluster_buffers(vb, ib, faces)
         bone_indices = [bone_idx] * len(verts)
         material_indices = [material_idx] * len(faces)
 
@@ -129,20 +135,25 @@ class ModelParserDX(ModelParser):
             uv_channels=vb.uv_channels,
             bone_indices=bone_indices,
             material_indices=material_indices,
-            lod_id=cluster.lod_id
+            lod_id=cluster.lod_id,
+            cluster_index=cluster_idx,
+            vb_index=cluster.vb_index,
+            source_vertex_indices=vertex_ids,
+            source_triangle_indices=triangle_ids,
+            source_corner_sequence=corners,
         )
-    
+
     def _parse_clusters(self):
         materials = self._model.materials
         if self._model.memory.has_tag(Platform.DX_BETA):
             materials = self._model.materials_beta
 
         for mat_idx, mat in enumerate(materials):
-            for cluster in mat.platform_data_dx.deref.clusters:
+            for cluster_idx, cluster in enumerate(mat.platform_data_dx.deref.clusters):
                 if self._lod_filter is not None and cluster.lod_id not in self._lod_filter:
                     continue
-                
-                mesh = self._parse_cluster(cluster, mat_idx)
+
+                mesh = self._parse_cluster(cluster, mat_idx, cluster_idx)
                 self._parsed_model.meshes.append(mesh)
 
     def _parse_platform_specific(self):

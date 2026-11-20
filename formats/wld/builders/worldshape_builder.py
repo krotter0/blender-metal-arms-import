@@ -6,12 +6,13 @@ from ..parsers.models.worldshapes import *
 from ..types.world import WorldShapeType
 from ....formats.ape.builders import model_builder
 from ...ape.parsers.models.model import ParsedModel
+from ....common.star_command_assembler import StarCommandAssembler
 
 class _WorldShapeBuildContext:
     def __init__(self, precomputed_meshes: dict[str, ParsedModel]):
         self.external_models = precomputed_meshes
 
-def build(index: int, worldshape: ParsedWorldShapeInit, precomputed_meshes: dict[str, ParsedModel]):
+def build(index: int, worldshape: ParsedWorldShapeInit, precomputed_meshes: dict[str, ParsedModel], star_commands: list[str] = None):
     _SHAPE_TYPE_TO_BUILDER_MAP = {
         WorldShapeType.POINT: _build_shape_point,
         WorldShapeType.LINE: _build_shape_line,
@@ -29,6 +30,7 @@ def build(index: int, worldshape: ParsedWorldShapeInit, precomputed_meshes: dict
         obj = builder(index, worldshape, worldshape.shape, context)
         if obj is not None:
             _apply_gamedata_to_object(obj, worldshape)
+            _apply_star_commands(obj, star_commands)
         return obj
     else:
         print(f"Unsupported shape type: {worldshape.type}")
@@ -157,6 +159,14 @@ def _build_shape_mesh(index: int, init: ParsedWorldShapeInit, shape: ParsedWorld
         _set_blender_obj_transform(obj, init.mtx)
 
     return obj
+
+def _apply_star_commands(obj: bpy.types.Object, star_commands: list[str] = None):
+    # (added by lightmap recovery, e.g. *nolmuse; also kept as a property, as names stop at 63 characters)
+    if not star_commands:
+        return
+    suffix = StarCommandAssembler(list(star_commands)).assemble()
+    obj.name = obj.name + suffix
+    obj["ma_lightmap"] = {"star_commands": suffix}
 
 def _create_curve(name: str):
     curve = bpy.data.curves.new(name, type='CURVE')
