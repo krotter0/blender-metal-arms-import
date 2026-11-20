@@ -18,6 +18,16 @@ class ParsedMesh:
     color_channels: int
     uv_channels: int
     lod_id: int
+    # Where the mesh came from in the compiled data (set by parsers that track it, None otherwise):
+    # the cluster's index in its material's cluster list, its vertex buffer, each vertex's index in
+    # that buffer, each face's triangle index in the cluster (degenerate list triangles counted,
+    # degenerate strip triangles not), and every triangle corner in order, degenerate list
+    # triangles included. Lightmap recovery data refers to triangles and vertices this way.
+    cluster_index: int = None
+    vb_index: int = None
+    source_vertex_indices: list[int] = None
+    source_triangle_indices: list[int] = None
+    source_corner_sequence: list[int] = None
 
     @staticmethod
     def merge_meshes(meshes: list[Self]):

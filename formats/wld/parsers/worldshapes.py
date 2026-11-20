@@ -46,7 +46,7 @@ class WorldShapeParser:
     
     def _parse_mesh(self, shape: CFWorldShapeMesh):
         mesh_name = shape.mesh_name.deref
-        return ParsedWorldShapeMesh(mesh_name=mesh_name)
+        return ParsedWorldShapeMesh(mesh_name=mesh_name, mesh_inst_flags=shape.mesh_inst_flags)
 
     def _parse_shape(self, worldshape_init: CFWorldShapeInit):
         shape_type = worldshape_init.shape_type

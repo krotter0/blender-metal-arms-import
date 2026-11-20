@@ -28,6 +28,7 @@ class ParsedWorldShapeCylinder:
 @dataclass
 class ParsedWorldShapeMesh:
     mesh_name: str
+    mesh_inst_flags: int = 0
 
 @dataclass
 class ParsedWorldShapeInit:

@@ -19,19 +19,28 @@ class ModelParser:
         self._material_parser = material_parser
         self._streaming_pointer: Pointer[None] = None
 
-    def _indices_to_triangle_list_faces(self, indices: Sequence[int], triangle_count: int, start_index: int = 0):
+    def _indices_to_triangle_list_faces(self, indices: Sequence[int], triangle_count: int, start_index: int = 0, triangle_ids: list[int] = None, corners: list[int] = None, first_id: int = 0):
+        # triangle_ids / corners, when given, collect each kept face's triangle index (from first_id;
+        # degenerate triangles count) and every corner in order (degenerate triangles included)
         end_index = start_index + triangle_count * 3
         faces = []
-        for i in range(start_index, end_index, 3):
+        for n, i in enumerate(range(start_index, end_index, 3)):
             i0 = indices[i]
             i1 = indices[i + 1]
             i2 = indices[i + 2]
 
+            if corners is not None:
+                corners.extend((i0, i1, i2))
+
             if i0 != i1 and i1 != i2 and i0 != i2:
                 faces.append((i0, i1, i2))
+                if triangle_ids is not None:
+                    triangle_ids.append(first_id + n)
         return faces
 
-    def _indices_to_triangle_strip_faces(self, indices: Sequence[int], triangle_count: int, start_index: int = 0):
+    def _indices_to_triangle_strip_faces(self, indices: Sequence[int], triangle_count: int, start_index: int = 0, triangle_ids: list[int] = None, corners: list[int] = None, first_id: int = 0):
+        # triangle_ids / corners as for lists, except degenerate strip triangles don't count;
+        # first_id is the index the strip's first kept triangle gets
         faces = []
         for i in range(start_index, start_index + triangle_count):
             i0 = indices[i]
@@ -45,6 +54,11 @@ class ModelParser:
 
             if i0 != i1 and i1 != i2 and i0 != i2:
                 faces.append(face)
+                if triangle_ids is not None:
+                    triangle_ids.append(first_id)
+                    first_id += 1
+                if corners is not None:
+                    corners.extend(face)
 
         return faces
 

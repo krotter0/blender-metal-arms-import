@@ -11,6 +11,7 @@ from ...common.platform import Platform
 from .types.world import FData_WorldFileHeader_t
 from .parsers.world import WorldParser
 from .builders import world_builder
+from . import lightmap_recovery
 
 logger = logging.getLogger(__name__)
         
@@ -85,6 +86,19 @@ class ImportWld(Operator, ImportHelper):
         default=True
     )
 
+    restore_lightmap_data: BoolProperty(
+        name="Restore Lightmap Data",
+        description="If lightmap recovery data exists for this world (matched by file name), put back what pasm's lightmapper needs that the compiled world lost: lightmap-only lights, non-blocking materials and objects, vertex radiosity flags and art colours, the source triangle order and the .aid bake settings",
+        default=True
+    )
+
+    lightmap_data_folder: StringProperty(
+        name="Lightmap Data Folder",
+        description="Folder of lightmap recovery files (<world>.txt) to look in before the add-on's own LightMapData/Recovered. Leave empty to use only the add-on's",
+        subtype='DIR_PATH',
+        default=""
+    )
+
     def execute(self, context):
         if not context.window_manager.ma_texture_import_settings.is_valid():
             self.report({'ERROR'}, "Invalid texture folder path.")
@@ -123,6 +137,13 @@ class ImportWld(Operator, ImportHelper):
 
         row = col.row()
         row.prop(self, "load_external_meshes")
+
+        row = col.row()
+        row.prop(self, "restore_lightmap_data")
+
+        row = col.row()
+        row.prop(self, "lightmap_data_folder", text="")
+        row.enabled = self.restore_lightmap_data
         
         context.window_manager.ma_texture_import_settings.draw(context, layout)
 
@@ -160,7 +181,42 @@ class ImportWld(Operator, ImportHelper):
                 )
                 self.report({'ERROR'}, f"Failed to parse .wld, possible platform mismatch. See console for details.")
                 return {'CANCELLED'}
+        options.world_name = Path(self.filepath).stem
+        if self.restore_lightmap_data:
+            options.lightmap_recovery = self._restore_lightmap_data(parsed_world, options.world_name)
         world_builder.build(parsed_world, options)
         stopwatch.report()
 
         return {'FINISHED'}
+
+    def _restore_lightmap_data(self, parsed_world, world_name: str):
+        folders = []
+        if self.lightmap_data_folder:
+            folders.append(bpy.path.abspath(self.lightmap_data_folder))
+        folders.append(lightmap_recovery.BUNDLED_DATA_DIR)
+        path = lightmap_recovery.find_file(world_name, folders)
+        if path is None:
+            print(f"Lightmap recovery: no data for '{world_name}'")
+            return None
+
+        try:
+            data = lightmap_recovery.parse_file(path)
+            exact = data.sha256 is not None and data.sha256 == lightmap_recovery.file_sha256(self.filepath)
+            result = lightmap_recovery.apply(data, parsed_world, exact)
+        except Exception:
+            logger.exception("Failed to apply lightmap recovery data '%s'", path)
+            self.report({'WARNING'}, f"Lightmap recovery data '{path.name}' could not be applied. See console for details.")
+            return None
+
+        print(f"Lightmap recovery: {path}")
+        for line in result.report:
+            print(f"  {line}")
+        for line in result.warnings:
+            print(f"  warning: {line}")
+
+        text_name = f"{world_name}_lightmap_recovery.txt"
+        if exact:
+            self.report({'INFO'}, f"Restored lightmap data for {world_name} ({len(result.lights)} lightmap-only lights). See the {text_name} text.")
+        else:
+            self.report({'WARNING'}, f"Lightmap data for {world_name} was made for another build of this world (sha256 differs): only name-checked data restored. See the {text_name} text.")
+        return result

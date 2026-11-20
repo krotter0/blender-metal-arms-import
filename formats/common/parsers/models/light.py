@@ -20,3 +20,8 @@ class ParsedLight:
     spot_inner_radians: float
     spot_outer_radians: float
     corona_scale: float
+    # Set by lightmap recovery: star commands to add to the name, custom properties to add (ma_lightmap),
+    # and whether to leave the light out
+    extra_star_commands: list[str] = None
+    extra_props: dict = None
+    skip: bool = False

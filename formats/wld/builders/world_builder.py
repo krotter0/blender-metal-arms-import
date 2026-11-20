@@ -8,7 +8,8 @@ from ...ape.builders import model_builder, material_builder
 from ...ape.parsers.model_gc import ModelParserGC
 from ...ape.parsers.model_dx import ModelParserDX
 from ...ape.parsers.models.model import ParsedModel
-from . import worldshape_builder, cell_builder, portal_builder, volume_builder
+from . import worldshape_builder, cell_builder, portal_builder, volume_builder, lightmap_recovery_builder
+from ..lightmap_recovery import RecoveryResult
 from ..types.world import PortalFlags, WorldShapeType
 from ..parsers.world import ParsedWorld
 from ....common.platform import Platform
@@ -28,6 +29,8 @@ class WorldBuildOptions:
     texture_folder_path: str = None
     texture_allow_recurse: bool = True
     texture_extension: str = ".png"
+    world_name: str = "world"
+    lightmap_recovery: RecoveryResult = None
 
 def _load_external_meshes(world: ParsedWorld, options: WorldBuildOptions) -> dict[str, ParsedModel]:
     used_meshes = set()
@@ -51,6 +54,7 @@ def _load_external_meshes(world: ParsedWorld, options: WorldBuildOptions) -> dic
     return loaded_meshes
 
 def build(world: ParsedWorld, options: WorldBuildOptions = WorldBuildOptions()):
+    recovery = options.lightmap_recovery
     external_meshes: dict[str, ParsedModel] = {}
     if options.load_external_meshes:
         external_meshes = _load_external_meshes(world, options)
@@ -64,23 +68,33 @@ def build(world: ParsedWorld, options: WorldBuildOptions = WorldBuildOptions()):
         material_builder.build_textures_from_file_system(materials, options.texture_folder_path, options.texture_allow_recurse, [options.texture_extension])
 
     if options.import_meshes:
-        for mesh in world.meshes:
+        for mesh_index, mesh in enumerate(world.meshes):
             model_options = model_builder.ModelBuildOptions()
             model_options.platform = options.platform
             model_options.create_armature = False
             model_options.merge_clusters = False
             model_options.apply_lod_name_prefix = False
-            model_builder.build(mesh, model_options)
+            _, objects = model_builder.build(mesh, model_options)
+            if recovery is not None:
+                lightmap_recovery_builder.apply_to_mesh_objects(recovery, mesh_index, objects)
 
     if options.import_worldshapes:
         for i, worldshape in enumerate(world.worldshapes):
-            worldshape_builder.build(i, worldshape, external_meshes)
+            star_commands = recovery.shape_star_commands.get(i) if recovery is not None else None
+            worldshape_builder.build(i, worldshape, external_meshes, star_commands)
 
     if options.import_lights:
         for i, light in enumerate(world.vis_data.lights):
             light_builder.build(i, light)
 
-        light_builder.build_ambient(world.vis_data.ambient_light_color, world.vis_data.ambient_light_intensity)
+        if recovery is None:
+            light_builder.build_ambient(world.vis_data.ambient_light_color, world.vis_data.ambient_light_intensity)
+        elif not recovery.ambient_props.get("removed"):
+            light_builder.build_ambient(world.vis_data.ambient_light_color, world.vis_data.ambient_light_intensity,
+                                        star_commands=recovery.ambient_star_commands, extra_props=recovery.ambient_props or None)
+
+    if recovery is not None:
+        lightmap_recovery_builder.build(recovery, options.world_name, options.import_lights)
 
     if options.import_cells:
         first_volume = 1 if options.skip_first_cell else 0
